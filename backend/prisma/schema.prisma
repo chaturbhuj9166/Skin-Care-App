@@ -1,0 +1,236 @@
+// Prisma schema for the SkinCare Consultation App backend.
+// Run `npx prisma generate` after any change, and `npx prisma migrate dev`
+// against a live PostgreSQL instance to create/update the database schema.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum CaseStatus {
+  PENDING
+  ASSIGNED
+  IN_REVIEW
+  SOLVED
+  CLOSED
+}
+
+enum SenderType {
+  USER
+  DOCTOR
+}
+
+enum NotificationUserType {
+  USER
+  DOCTOR
+  ADMIN
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum VideoCallStatus {
+  SCHEDULED
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+model Admin {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String?
+  phone     String   @unique
+  avatar    String?
+  gender    String?
+  age       Int?
+  isBlocked Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  cases   Case[]
+  tickets Ticket[]
+  ratings Rating[]
+}
+
+model Doctor {
+  id             String   @id @default(uuid())
+  name           String
+  email          String   @unique
+  phone          String   @unique
+  avatar         String?
+  specialization String?
+  experience     Int?
+  isAvailable    Boolean  @default(true)
+  // Doctors log in with phone+OTP (see auth.controller.js's verifyOtp), the
+  // same as Users - this is unused today, kept only in case a
+  // password-based fallback is ever needed.
+  password       String?
+  createdAt      DateTime @default(now())
+
+  cases   Case[]
+  ratings Rating[]
+}
+
+model QuestionFlow {
+  id        String   @id @default(uuid())
+  title     String
+  questions Json
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  cases Case[]
+}
+
+model Case {
+  id             String     @id @default(uuid())
+  userId         String
+  doctorId       String?
+  questionFlowId String
+  answers        Json
+  status         CaseStatus @default(PENDING)
+  photos         String[]
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  doctor       Doctor?      @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+  questionFlow QuestionFlow @relation(fields: [questionFlowId], references: [id])
+
+  messages   Message[]
+  solution   Solution?
+  videoCalls VideoCall[]
+  statusHistory CaseStatusHistory[]
+  rating     Rating?
+
+  @@index([userId])
+  @@index([doctorId])
+  @@index([status])
+}
+
+model CaseStatusHistory {
+  id            String     @id @default(uuid())
+  caseId        String
+  status        CaseStatus
+  note          String?
+  changedByType String
+  changedById   String
+  createdAt     DateTime   @default(now())
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
+}
+
+model Solution {
+  id           String    @id @default(uuid())
+  caseId       String    @unique
+  doctorId     String
+  text         String
+  prescription Json
+  followUpDate DateTime?
+  createdAt    DateTime  @default(now())
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+}
+
+model Message {
+  id         String     @id @default(uuid())
+  caseId     String
+  senderId   String
+  senderType SenderType
+  text       String?
+  fileUrl    String?
+  isRead     Boolean    @default(false)
+  createdAt  DateTime   @default(now())
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
+}
+
+model Notification {
+  id        String               @id @default(uuid())
+  userId    String
+  userType  NotificationUserType
+  title     String
+  body      String
+  isRead    Boolean              @default(false)
+  type      String
+  caseId    String? // lets the client deep-link the notification to the related case
+  createdAt DateTime             @default(now())
+
+  @@index([userId, userType])
+}
+
+model Rating {
+  id        String   @id @default(uuid())
+  caseId    String   @unique
+  userId    String
+  doctorId  String
+  score     Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  case   Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@index([doctorId])
+}
+
+model Ticket {
+  id          String         @id @default(uuid())
+  userId      String
+  subject     String
+  description String
+  status      TicketStatus   @default(OPEN)
+  priority    TicketPriority
+  reply       String?
+  createdAt   DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VideoCall {
+  id          String          @id @default(uuid())
+  caseId      String
+  scheduledAt DateTime
+  status      VideoCallStatus @default(SCHEDULED)
+  roomId      String
+  createdAt   DateTime        @default(now())
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
+}

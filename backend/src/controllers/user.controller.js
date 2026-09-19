@@ -1,0 +1,346 @@
+const prisma = require('../config/db');
+const asyncHandler = require('../utils/asyncHandler');
+const ApiError = require('../utils/ApiError');
+const { getPagination, buildPaginatedResponse } = require('../utils/pagination');
+const socket = require('../services/socket');
+const { validateAnswers } = require('../validation/questionFlow');
+const { recordCaseStatus } = require('../services/caseHistory');
+
+async function getOwnCaseOrThrow(caseId, userId) {
+  const found = await prisma.case.findUnique({ where: { id: caseId } });
+  if (!found || found.userId !== userId) throw ApiError.notFound('Case not found');
+  return found;
+}
+
+// User access to the published questionnaire does not expose admin draft flows.
+const getActiveQuestionFlow = asyncHandler(async (req, res) => {
+  const questionFlow = await prisma.questionFlow.findFirst({
+    where: { isActive: true },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (!questionFlow) throw ApiError.notFound('No active question flow is available');
+  res.json({ questionFlow });
+});
+
+// GET /api/users/profile
+const getProfile = asyncHandler(async (req, res) => {
+  res.json({ user: req.user });
+});
+
+// GET /api/users/doctors
+// Browse-only listing so users can see available doctors; case assignment
+// itself stays admin-driven (see docs/client-spec-checklist.md contract decisions).
+const listDoctors = asyncHandler(async (req, res) => {
+  const doctors = await prisma.doctor.findMany({
+    orderBy: { name: 'asc' },
+    select: {
+      id: true,
+      name: true,
+      specialization: true,
+      experience: true,
+      avatar: true,
+      isAvailable: true,
+    },
+  });
+
+  const ratingStats = doctors.length
+    ? await prisma.rating.groupBy({
+        by: ['doctorId'],
+        where: { doctorId: { in: doctors.map((d) => d.id) } },
+        _avg: { score: true },
+        _count: { _all: true },
+      })
+    : [];
+  const statsByDoctor = ratingStats.reduce((acc, row) => {
+    acc[row.doctorId] = { rating: row._avg.score, reviewCount: row._count._all };
+    return acc;
+  }, {});
+
+  const shaped = doctors.map((doctor) => ({
+    ...doctor,
+    rating: statsByDoctor[doctor.id]?.rating ?? null,
+    reviewCount: statsByDoctor[doctor.id]?.reviewCount ?? 0,
+  }));
+
+  res.json({ data: shaped });
+});
+
+// PUT /api/users/profile
+const updateProfile = asyncHandler(async (req, res) => {
+  const { name, email, gender, age, avatar } = req.body;
+
+  const user = await prisma.user.update({
+    where: { id: req.user.id },
+    data: {
+      ...(name !== undefined && { name }),
+      ...(email !== undefined && { email }),
+      ...(gender !== undefined && { gender }),
+      ...(age !== undefined && { age }),
+      ...(avatar !== undefined && { avatar }),
+    },
+  });
+
+  res.json({ user });
+});
+
+// GET /api/users/cases?status=&page=
+const listCases = asyncHandler(async (req, res) => {
+  const { status, page: pageQuery, limit: limitQuery } = req.query;
+  const { page, limit, skip, take } = getPagination({ page: pageQuery, limit: limitQuery });
+
+  const where = { userId: req.user.id, ...(status && { status }) };
+
+  const [data, total] = await Promise.all([
+    prisma.case.findMany({
+      where,
+      skip,
+      take,
+      orderBy: { createdAt: 'desc' },
+      include: { doctor: { select: { id: true, name: true, specialization: true, avatar: true } }, solution: true, rating: true },
+    }),
+    prisma.case.count({ where }),
+  ]);
+
+  res.json(buildPaginatedResponse(data, total, page, limit));
+});
+
+// POST /api/users/cases
+const createCase = asyncHandler(async (req, res) => {
+  const { questionFlowId, answers, photos } = req.body;
+
+  const flow = await prisma.questionFlow.findUnique({ where: { id: questionFlowId } });
+  if (!flow) throw ApiError.badRequest('Invalid questionFlowId');
+  if (!flow.isActive) throw ApiError.badRequest('This question flow is no longer active. Please load the current questionnaire.');
+  const answerErrors = validateAnswers(flow.questions, answers);
+  if (answerErrors.length) throw ApiError.badRequest('Please check your questionnaire answers', answerErrors);
+  const uploadedPhotos = [...new Set([
+    ...(photos || []),
+    ...flow.questions.filter(question => question.type === 'photo_upload')
+      .flatMap(question => answers[question.id] || []),
+  ])];
+  if (uploadedPhotos.length > 5) throw ApiError.badRequest('A case can include at most five photos');
+
+  const newCase = await prisma.case.create({
+    data: {
+      userId: req.user.id,
+      questionFlowId,
+      answers,
+      photos: uploadedPhotos,
+    },
+  });
+
+  await recordCaseStatus({
+    caseId: newCase.id,
+    status: newCase.status,
+    changedByType: 'USER',
+    changedById: req.user.id,
+  });
+
+  // Notify every admin (in-app notification row + live socket push).
+  const admins = await prisma.admin.findMany({ select: { id: true } });
+  if (admins.length) {
+    await prisma.notification.createMany({
+      data: admins.map((admin) => ({
+        userId: admin.id,
+        userType: 'ADMIN',
+        title: 'New case submitted',
+        body: `${req.user.name} submitted a new consultation case.`,
+        type: 'NEW_CASE',
+        caseId: newCase.id,
+      })),
+    });
+  }
+
+  socket.emitToAllAdmins('notification', {
+    title: 'New case submitted',
+    body: `${req.user.name} submitted a new consultation case.`,
+    type: 'NEW_CASE',
+    caseId: newCase.id,
+  });
+
+  res.status(201).json({ case: newCase });
+});
+
+// GET /api/users/cases/:id
+const getCaseById = asyncHandler(async (req, res) => {
+  const found = await prisma.case.findUnique({
+    where: { id: req.params.id },
+    include: {
+      doctor: { select: { id: true, name: true, specialization: true, avatar: true, experience: true } },
+      questionFlow: true,
+      solution: true,
+      videoCalls: true,
+      rating: true,
+    },
+  });
+
+  if (!found || found.userId !== req.user.id) throw ApiError.notFound('Case not found');
+  res.json({ case: found });
+});
+
+// POST /api/users/cases/:id/rating
+// A user may rate a case once it has a solution, and only once per case.
+const submitRating = asyncHandler(async (req, res) => {
+  const caseRecord = await getOwnCaseOrThrow(req.params.id, req.user.id);
+  const { score, comment } = req.body;
+
+  if (!caseRecord.doctorId) throw ApiError.badRequest('This case has no assigned doctor to rate');
+  if (!['SOLVED', 'CLOSED'].includes(caseRecord.status)) {
+    throw ApiError.badRequest('You can rate a doctor once your case has a solution');
+  }
+
+  const existing = await prisma.rating.findUnique({ where: { caseId: caseRecord.id } });
+  if (existing) throw ApiError.conflict('You have already rated this case');
+
+  const rating = await prisma.rating.create({
+    data: {
+      caseId: caseRecord.id,
+      userId: req.user.id,
+      doctorId: caseRecord.doctorId,
+      score,
+      comment: comment || null,
+    },
+  });
+
+  res.status(201).json({ rating });
+});
+
+// GET /api/users/cases/:id/messages
+const listCaseMessages = asyncHandler(async (req, res) => {
+  const caseRecord = await getOwnCaseOrThrow(req.params.id, req.user.id);
+
+  const messages = await prisma.message.findMany({
+    where: { caseId: req.params.id },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  // Opening the thread marks the doctor's messages as read/seen by this user.
+  const { count } = await prisma.message.updateMany({
+    where: { caseId: caseRecord.id, senderType: 'DOCTOR', isRead: false },
+    data: { isRead: true },
+  });
+  if (count > 0) socket.emitToCase(caseRecord.id, 'messages_read', { caseId: caseRecord.id, readBy: 'USER' });
+
+  res.json({ data: messages });
+});
+
+// POST /api/users/cases/:id/messages
+const postCaseMessage = asyncHandler(async (req, res) => {
+  const caseRecord = await getOwnCaseOrThrow(req.params.id, req.user.id);
+  const { text, fileUrl } = req.body;
+
+  const message = await prisma.message.create({
+    data: {
+      caseId: caseRecord.id,
+      senderId: req.user.id,
+      senderType: 'USER',
+      text: text || null,
+      fileUrl: fileUrl || null,
+    },
+  });
+
+  socket.emitToCase(caseRecord.id, 'new_message', message);
+
+  if (caseRecord.doctorId) {
+    await prisma.notification.create({
+      data: {
+        userId: caseRecord.doctorId,
+        userType: 'DOCTOR',
+        title: 'New message',
+        body: `${req.user.name} sent a new message on their case.`,
+        type: 'NEW_MESSAGE',
+        caseId: caseRecord.id,
+      },
+    });
+    socket.emitToDoctor(caseRecord.doctorId, 'notification', {
+      title: 'New message',
+      body: `${req.user.name} sent a new message on their case.`,
+      type: 'NEW_MESSAGE',
+      caseId: caseRecord.id,
+    });
+  }
+
+  res.status(201).json({ message });
+});
+
+// GET /api/users/notifications?unread=true
+const listNotifications = asyncHandler(async (req, res) => {
+  const { unread } = req.query;
+  const where = { userId: req.user.id, userType: 'USER', ...(unread === 'true' && { isRead: false }) };
+
+  const notifications = await prisma.notification.findMany({ where, orderBy: { createdAt: 'desc' } });
+  res.json({ data: notifications });
+});
+
+// PATCH /api/users/notifications/:id/read
+const markNotificationRead = asyncHandler(async (req, res) => {
+  const notification = await prisma.notification.findUnique({ where: { id: req.params.id } });
+  if (!notification || notification.userId !== req.user.id || notification.userType !== 'USER') {
+    throw ApiError.notFound('Notification not found');
+  }
+
+  const updated = await prisma.notification.update({ where: { id: notification.id }, data: { isRead: true } });
+  res.json({ notification: updated });
+});
+
+// POST /api/users/tickets
+const createTicket = asyncHandler(async (req, res) => {
+  const { subject, description, priority } = req.body;
+
+  const ticket = await prisma.ticket.create({
+    data: { userId: req.user.id, subject, description, priority },
+  });
+
+  res.status(201).json({ ticket });
+});
+
+// GET /api/users/tickets
+const listTickets = asyncHandler(async (req, res) => {
+  const tickets = await prisma.ticket.findMany({
+    where: { userId: req.user.id },
+    orderBy: { createdAt: 'desc' },
+  });
+  res.json({ data: tickets });
+});
+
+// GET /api/users/appointments
+const listAppointments = asyncHandler(async (req, res) => {
+  const cases = await prisma.case.findMany({ where: { userId: req.user.id }, select: { id: true } });
+  const caseIds = cases.map((c) => c.id);
+
+  const appointments = caseIds.length
+    ? await prisma.videoCall.findMany({
+        where: { caseId: { in: caseIds }, status: { not: 'CANCELLED' } },
+        orderBy: { scheduledAt: 'desc' },
+        include: {
+          case: {
+            select: {
+              id: true,
+              status: true,
+              doctor: { select: { id: true, name: true, specialization: true, avatar: true } },
+            },
+          },
+        },
+      })
+    : [];
+
+  res.json({ data: appointments });
+});
+
+module.exports = {
+  getActiveQuestionFlow,
+  getProfile,
+  listDoctors,
+  updateProfile,
+  listCases,
+  createCase,
+  getCaseById,
+  submitRating,
+  listCaseMessages,
+  postCaseMessage,
+  listNotifications,
+  markNotificationRead,
+  createTicket,
+  listTickets,
+  listAppointments,
+};

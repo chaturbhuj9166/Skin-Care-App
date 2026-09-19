@@ -1,0 +1,134 @@
+SKINCARE APP - EXTERNAL REQUIREMENTS TO COMPLETE THE PROJECT
+================================================================
+This file lists everything that CANNOT be built without outside
+accounts/services, and must be requested from the client (Lekhraj)
+or created before the project can go fully live.
+
+Everything else (backend, database, admin dashboard, both Flutter
+apps, chat, file upload, doctor rating, etc.) is already built and
+working locally without any of these.
+
+----------------------------------------------------------------
+1. FIREBASE PROJECT (required for OTP login, push notifications,
+   cloud file storage)
+----------------------------------------------------------------
+   What to do:
+   - Create a free project at console.firebase.google.com
+     (e.g. name it "skincare-consultation")
+
+   Needed from Firebase for the USER app:
+   - Register Android app with package name: com.zepfly.skincare.user
+   - Download google-services.json -> place in android/app/
+   - (Later, iOS) Register iOS app with bundle ID: com.zepfly.skincare.user
+   - Download GoogleService-Info.plist -> place in ios/Runner/
+
+   Needed from Firebase for the DOCTOR app:
+   - Register Android app with package name: com.zepfly.skincare.doctor
+   - Download its own google-services.json
+   - (Later, iOS) Register iOS app with bundle ID: com.zepfly.skincare.doctor
+   - Download its own GoogleService-Info.plist
+
+   Needed from Firebase for the BACKEND (server):
+   - Project Settings -> Service Accounts -> Generate Private Key
+   - Save the downloaded JSON as firebase-admin.json (used to send
+     push notifications and verify OTP from the server side)
+
+   What this enables:
+   - Phone number OTP login (currently the app has a working login
+     screen but real SMS OTP needs this)
+   - Push notifications (new case, case assigned, solution ready,
+     video call scheduled)
+   - Cloud file storage for photos/avatars (currently files are
+     stored on our own server, which works fine, but Firebase
+     Storage is what the original spec asked for)
+
+----------------------------------------------------------------
+2. AGORA ACCOUNT (required for real video calling)
+----------------------------------------------------------------
+   What to do:
+   - Create a free account at agora.io
+   - Create a new project
+   - Copy the App ID and App Certificate
+
+   What this enables:
+   - Doctor <-> Patient video consultation calls
+   - Without this, "Schedule Call" can still be created in the
+     database, but the actual live video screen cannot connect
+
+   Where it goes:
+   - Backend .env: AGORA_APP_ID=..., AGORA_APP_CERTIFICATE=...
+   - Flutter app already has the video call screen built; it just
+     needs these keys to go live
+
+----------------------------------------------------------------
+3. GOOGLE PLAY CONSOLE ACCOUNT (required to publish Android apps)
+----------------------------------------------------------------
+   What to do:
+   - Create account at play.google.com/console
+   - One-time fee: $25 USD
+
+   Needed to publish:
+   - App icon (512x512 px) - already prepared
+   - At least 5 screenshots per app
+   - Privacy Policy URL (a simple hosted page, can be created once
+     backend is deployed)
+   - Signed release build (we generate a keystore file ourselves;
+     client must keep it safe once created - if lost, the app can
+     never be updated again)
+
+   Note: Two separate listings needed - one for User app, one for
+   Doctor app (since they are separate apps with separate package
+   names, as required by the spec).
+
+----------------------------------------------------------------
+4. APPLE DEVELOPER ACCOUNT (required only for iOS - on hold for now
+   per client instruction to focus on Android first)
+----------------------------------------------------------------
+   What to do:
+   - Create account at developer.apple.com
+   - Fee: $99 USD per year
+
+   Needed to publish:
+   - Screenshots (6.5" and 5.5" sizes)
+   - App icon (1024x1024 px)
+   - Apple certificate (can be generated via Xcode/Codemagic)
+
+   Status: Not needed right now, only when we resume iOS work.
+
+----------------------------------------------------------------
+5. RAILWAY ACCOUNT (required for live/production deployment)
+----------------------------------------------------------------
+   What to do:
+   - Create free account at railway.app
+
+   Needed:
+   - New Project -> Add PostgreSQL (production database)
+   - New Service -> connect backend/ folder from GitHub
+   - New Service -> connect admin_dashboard/ folder from GitHub
+   - Environment variables to add on Railway: DATABASE_URL,
+     JWT_SECRET, FIREBASE keys, AGORA_APP_ID, AGORA_APP_CERTIFICATE
+
+   What this enables:
+   - A real public backend URL (instead of localhost) so the app
+     works outside our laptop, from any phone, anywhere
+   - A public admin dashboard URL for the client to use
+
+   Note: A GitHub account/repo is also needed to connect to Railway
+   (free, can be created anytime).
+
+----------------------------------------------------------------
+SUMMARY - WHAT TO ASK THE CLIENT FOR
+----------------------------------------------------------------
+1. Go-ahead / access to create a Firebase project (free)
+2. Go-ahead / access to create an Agora account (free)
+3. Google Play Console access or the $25 fee (for publishing)
+4. GitHub account (free) to push code for deployment
+5. Railway account (free tier available) for hosting
+6. Apple Developer account + $99/year - ONLY when we start iOS
+
+Nothing above blocks further development - we can keep building and
+testing everything else locally. These are only needed for:
+  - Real OTP SMS + push notifications (Firebase)
+  - Real video calls (Agora)
+  - Public/live deployment (Railway)
+  - Publishing to app stores (Play Console / Apple Developer)

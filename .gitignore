@@ -1,0 +1,9 @@
+# Claude Code session state - not part of the project
+.claude/
+
+# Scratch/export output, not source
+tmp/
+
+# OS
+.DS_Store
+Thumbs.db
