@@ -141,6 +141,7 @@ class ApiRepository extends ChangeNotifier {
     });
     SocketService.instance.on('case_assigned', (_) => refreshCases());
     SocketService.instance.on('solution_added', (_) => refreshCases());
+    SocketService.instance.on('case_status_changed', (_) => refreshCases());
     SocketService.instance.on('call_scheduled', (_) {
       refreshAppointments();
       refreshCases();

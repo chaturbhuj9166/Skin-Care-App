@@ -289,6 +289,10 @@ const updateCaseStatus = asyncHandler(async (req, res) => {
     changedById: req.admin.id,
   });
 
+  const payload = { caseId: updated.id, status };
+  socket.emitToUser(updated.userId, 'case_status_changed', payload);
+  if (updated.doctorId) socket.emitToDoctor(updated.doctorId, 'case_status_changed', payload);
+
   res.json({ case: updated });
 });
 
