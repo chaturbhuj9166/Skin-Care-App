@@ -1,8 +1,3 @@
-databases:
-  - name: skincare-db
-    plan: free
-    postgresMajorVersion: 16
-
 services:
   - type: web
     name: skincare-backend
@@ -15,10 +10,10 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # Using an external free Postgres (Neon.tech) instead of Render's own
+      # database, since a Render account only allows one free-tier database.
       - key: DATABASE_URL
-        fromDatabase:
-          name: skincare-db
-          property: connectionString
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
