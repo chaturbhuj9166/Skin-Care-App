@@ -127,7 +127,7 @@ export default function CaseDetail() {
                 <Select value={selectedDoctor} onChange={(e) => setSelectedDoctor(e.target.value)}>
                   <option value="">Select a doctor…</option>
                   {doctorsData?.data?.map((d) => (
-                    <option key={d.id} value={d.id}>{d.name}{d.isAvailable ? '' : ' (unavailable)'}</option>
+                    <option key={d.id} value={d.id} disabled={!d.isAvailable}>{d.name}{d.isAvailable ? '' : ' (unavailable)'}</option>
                   ))}
                 </Select>
                 <Button className="mt-3 w-full" disabled={!selectedDoctor || busy} onClick={handleAssign}>

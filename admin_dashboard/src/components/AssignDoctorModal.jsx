@@ -48,7 +48,7 @@ export default function AssignDoctorModal({ caseId, open, onClose, onAssigned })
       <Select value={selectedDoctor} onChange={(e) => setSelectedDoctor(e.target.value)}>
         <option value="">Select a doctor…</option>
         {doctorsData?.data?.map((d) => (
-          <option key={d.id} value={d.id}>{d.name}{d.isAvailable ? '' : ' (unavailable)'}</option>
+          <option key={d.id} value={d.id} disabled={!d.isAvailable}>{d.name}{d.isAvailable ? '' : ' (unavailable)'}</option>
         ))}
       </Select>
       {error && <div className="mt-3"><ErrorMessage message={error} /></div>}

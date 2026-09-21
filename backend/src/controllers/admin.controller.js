@@ -208,6 +208,7 @@ const assignCase = asyncHandler(async (req, res) => {
   ]);
   if (!caseRecord) throw ApiError.notFound('Case not found');
   if (!doctor) throw ApiError.badRequest('Invalid doctorId');
+  if (!doctor.isAvailable) throw ApiError.badRequest(`Dr. ${doctor.name} is not available for new cases`);
   if (['SOLVED', 'CLOSED'].includes(caseRecord.status)) {
     throw ApiError.badRequest(`A ${caseRecord.status.toLowerCase()} case cannot be reassigned`);
   }
