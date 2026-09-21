@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { GripVertical, Plus, X } from 'lucide-react';
 import { api, apiErrorMessage } from '../lib/api';
 import { useApiQuery } from '../hooks/useApiQuery';
@@ -158,11 +158,6 @@ function FlowEditor({ flow, onSaved, onClose }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [dragIndex, setDragIndex] = useState(null);
-
-  useEffect(() => {
-    setTitle(flow.title);
-    setQuestions(flow.questions);
-  }, [flow]);
 
   function updateQuestion(index, next) {
     setQuestions((qs) => qs.map((q, i) => (i === index ? next : q)));
@@ -340,6 +335,7 @@ export default function QuestionBuilder() {
 
       {selected && (
         <FlowEditor
+          key={selectedId}
           flow={selected}
           onClose={() => setSelectedId(null)}
           onSaved={() => {

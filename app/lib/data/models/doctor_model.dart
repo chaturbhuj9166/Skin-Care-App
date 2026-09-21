@@ -24,9 +24,10 @@ class DoctorModel {
   });
 
   String get initials {
-    final parts = name.replaceFirst('Dr. ', '').split(' ');
+    final parts = name.replaceFirst('Dr. ', '').split(' ').where((p) => p.isNotEmpty).toList();
     if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    return name.substring(0, 2).toUpperCase();
+    if (parts.isEmpty) return '?';
+    return parts[0].substring(0, parts[0].length < 2 ? parts[0].length : 2).toUpperCase();
   }
 
   factory DoctorModel.fromJson(Map<String, dynamic> json) => DoctorModel(

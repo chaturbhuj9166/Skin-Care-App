@@ -158,7 +158,7 @@ class DoctorCaseDetailScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
           ],
-          if (c.solution == null) ...[
+          if (c.solution == null && c.status != CaseStatus.closed) ...[
             PrimaryButton(
               label: 'Write Solution',
               icon: Icons.edit_note_rounded,

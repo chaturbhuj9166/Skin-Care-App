@@ -15,14 +15,18 @@ async function getAssignedCaseOrThrow(caseId, doctorId) {
   return found;
 }
 
-// GET /api/doctors/profile
-const getProfile = asyncHandler(async (req, res) => {
-  const ratingAgg = await prisma.rating.aggregate({
-    where: { doctorId: req.doctor.id },
+async function ratingSummary(doctorId) {
+  const agg = await prisma.rating.aggregate({
+    where: { doctorId },
     _avg: { score: true },
     _count: { _all: true },
   });
-  res.json({ doctor: { ...req.doctor, rating: ratingAgg._avg.score, reviewCount: ratingAgg._count._all } });
+  return { rating: agg._avg.score, reviewCount: agg._count._all };
+}
+
+// GET /api/doctors/profile
+const getProfile = asyncHandler(async (req, res) => {
+  res.json({ doctor: { ...req.doctor, ...(await ratingSummary(req.doctor.id)) } });
 });
 
 // PUT /api/doctors/profile
@@ -40,7 +44,7 @@ const updateProfile = asyncHandler(async (req, res) => {
   });
 
   const { password, ...safeDoctor } = doctor;
-  res.json({ doctor: safeDoctor });
+  res.json({ doctor: { ...safeDoctor, ...(await ratingSummary(doctor.id)) } });
 });
 
 // PUT /api/doctors/availability
@@ -53,6 +57,7 @@ const updateAvailability = asyncHandler(async (req, res) => {
   });
 
   const { password, ...safeDoctor } = doctor;
+  socket.emitToAllAdmins('doctor_availability_changed', { doctorId: doctor.id, isAvailable: doctor.isAvailable });
   res.json({ doctor: safeDoctor });
 });
 
@@ -69,7 +74,13 @@ const listCases = asyncHandler(async (req, res) => {
       skip,
       take,
       orderBy: { createdAt: 'desc' },
-      include: { user: { select: { id: true, name: true, avatar: true, gender: true, age: true } } },
+      include: {
+        user: { select: { id: true, name: true, avatar: true, gender: true, age: true } },
+        questionFlow: { select: { questions: true } },
+        solution: true,
+        rating: true,
+        videoCalls: true,
+      },
     }),
     prisma.case.count({ where }),
   ]);
@@ -97,6 +108,7 @@ const getCaseById = asyncHandler(async (req, res) => {
 // POST /api/doctors/cases/:id/solution
 const addSolution = asyncHandler(async (req, res) => {
   const caseRecord = await getAssignedCaseOrThrow(req.params.id, req.doctor.id);
+  if (caseRecord.status === 'CLOSED') throw ApiError.badRequest('This case has been closed');
   const { text, prescription, followUpDate } = req.body;
 
   const [solution] = await prisma.$transaction([

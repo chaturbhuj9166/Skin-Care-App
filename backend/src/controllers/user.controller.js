@@ -96,7 +96,13 @@ const listCases = asyncHandler(async (req, res) => {
       skip,
       take,
       orderBy: { createdAt: 'desc' },
-      include: { doctor: { select: { id: true, name: true, specialization: true, avatar: true } }, solution: true, rating: true },
+      include: {
+        doctor: { select: { id: true, name: true, specialization: true, avatar: true, experience: true, isAvailable: true } },
+        questionFlow: { select: { questions: true } },
+        solution: true,
+        rating: true,
+        videoCalls: true,
+      },
     }),
     prisma.case.count({ where }),
   ]);
@@ -166,7 +172,7 @@ const getCaseById = asyncHandler(async (req, res) => {
   const found = await prisma.case.findUnique({
     where: { id: req.params.id },
     include: {
-      doctor: { select: { id: true, name: true, specialization: true, avatar: true, experience: true } },
+      doctor: { select: { id: true, name: true, specialization: true, avatar: true, experience: true, isAvailable: true } },
       questionFlow: true,
       solution: true,
       videoCalls: true,
@@ -317,7 +323,7 @@ const listAppointments = asyncHandler(async (req, res) => {
             select: {
               id: true,
               status: true,
-              doctor: { select: { id: true, name: true, specialization: true, avatar: true } },
+              doctor: { select: { id: true, name: true, specialization: true, avatar: true, experience: true, isAvailable: true } },
             },
           },
         },

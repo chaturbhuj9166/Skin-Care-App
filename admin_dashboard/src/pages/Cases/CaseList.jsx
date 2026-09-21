@@ -69,7 +69,7 @@ export default function CaseList() {
                 {
                   key: 'actions',
                   header: 'Actions',
-                  render: (r) => (
+                  render: (r) => ['SOLVED', 'CLOSED'].includes(r.status) ? null : (
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); setAssigningCaseId(r.id); }}

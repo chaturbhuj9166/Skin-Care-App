@@ -28,7 +28,7 @@ class MessageModel {
         sender: json['senderType'] == 'DOCTOR' ? SenderType.doctor : SenderType.user,
         text: (json['text'] as String?) ?? '',
         fileUrl: json['fileUrl'] as String?,
-        time: DateTime.parse(json['createdAt'] as String),
+        time: DateTime.parse(json['createdAt'] as String).toLocal(),
         isRead: (json['isRead'] as bool?) ?? false,
       );
 }

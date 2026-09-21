@@ -15,9 +15,11 @@ const TICKET_PRIORITIES = ['LOW', 'MEDIUM', 'HIGH'];
 const VIDEO_CALL_STATUSES = ['SCHEDULED', 'ONGOING', 'COMPLETED', 'CANCELLED'];
 const NOTIFICATION_TARGETS = ['ALL_USERS', 'ALL_DOCTORS', 'SPECIFIC_USER', 'SPECIFIC_DOCTOR'];
 
+const dateString = z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Must be a valid date');
+
 const analyticsQuerySchema = z.object({
-  from: z.string().optional(),
-  to: z.string().optional(),
+  from: dateString.optional(),
+  to: dateString.optional(),
 });
 
 const updateAdminProfileSchema = z.object({
@@ -34,8 +36,8 @@ const listCasesQuerySchema = z.object({
   status: z.enum(CASE_STATUSES).optional(),
   doctorId: z.string().optional(),
   search: z.string().optional(),
-  from: z.string().optional(),
-  to: z.string().optional(),
+  from: dateString.optional(),
+  to: dateString.optional(),
   page: z.string().optional(),
   limit: z.string().optional(),
 });
@@ -101,8 +103,8 @@ const videoCallsQuerySchema = z.object({
 
 const reportsQuerySchema = z.object({
   type: z.enum(['cases', 'users', 'doctors', 'tickets']).optional(),
-  from: z.string().optional(),
-  to: z.string().optional(),
+  from: dateString.optional(),
+  to: dateString.optional(),
 });
 
 // Profile / settings

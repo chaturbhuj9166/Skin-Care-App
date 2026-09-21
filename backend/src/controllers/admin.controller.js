@@ -208,6 +208,9 @@ const assignCase = asyncHandler(async (req, res) => {
   ]);
   if (!caseRecord) throw ApiError.notFound('Case not found');
   if (!doctor) throw ApiError.badRequest('Invalid doctorId');
+  if (['SOLVED', 'CLOSED'].includes(caseRecord.status)) {
+    throw ApiError.badRequest(`A ${caseRecord.status.toLowerCase()} case cannot be reassigned`);
+  }
 
   const updated = await prisma.case.update({
     where: { id: caseRecord.id },
@@ -239,12 +242,32 @@ const assignCase = asyncHandler(async (req, res) => {
     data: { caseId: caseRecord.id, type: 'CASE_ASSIGNED' },
   });
 
+  const patientNotice = {
+    title: 'Doctor assigned',
+    body: `Dr. ${doctor.name} will review your case.`,
+    type: 'CASE_ASSIGNED',
+    caseId: caseRecord.id,
+  };
+  await prisma.notification.create({ data: { ...patientNotice, userId: caseRecord.userId, userType: 'USER' } });
+
   const payload = { caseId: caseRecord.id, doctor: sanitize(doctor) };
   socket.emitToDoctor(doctorId, 'case_assigned', payload);
   socket.emitToCase(caseRecord.id, 'case_assigned', payload);
+  socket.emitToUser(caseRecord.userId, 'case_assigned', payload);
+  socket.emitToUser(caseRecord.userId, 'notification', patientNotice);
 
   res.json({ case: updated });
 });
+
+// SOLVED is deliberately absent: only a doctor's solution submission may mark
+// a case solved, otherwise the patient sees "Solved" with no prescription.
+const ADMIN_STATUS_TRANSITIONS = {
+  PENDING: [],
+  ASSIGNED: ['IN_REVIEW', 'CLOSED'],
+  IN_REVIEW: ['CLOSED'],
+  SOLVED: ['CLOSED'],
+  CLOSED: [],
+};
 
 // PATCH /api/admin/cases/:id/status
 const updateCaseStatus = asyncHandler(async (req, res) => {
@@ -252,6 +275,9 @@ const updateCaseStatus = asyncHandler(async (req, res) => {
 
   const caseRecord = await prisma.case.findUnique({ where: { id: req.params.id } });
   if (!caseRecord) throw ApiError.notFound('Case not found');
+  if (!ADMIN_STATUS_TRANSITIONS[caseRecord.status].includes(status)) {
+    throw ApiError.badRequest(`Cannot change case status from ${caseRecord.status} to ${status}`);
+  }
 
   const updated = await prisma.case.update({ where: { id: caseRecord.id }, data: { status } });
 
@@ -399,7 +425,31 @@ const deleteDoctor = asyncHandler(async (req, res) => {
   const existing = await prisma.doctor.findUnique({ where: { id: req.params.id } });
   if (!existing) throw ApiError.notFound('Doctor not found');
 
-  await prisma.doctor.delete({ where: { id: existing.id } });
+  // Deleting nulls Case.doctorId; without this, an in-progress case would be
+  // stranded as ASSIGNED with no doctor and never resurface for reassignment.
+  const activeCases = await prisma.case.findMany({
+    where: { doctorId: existing.id, status: { in: ['ASSIGNED', 'IN_REVIEW'] } },
+    select: { id: true },
+  });
+
+  await prisma.$transaction([
+    prisma.case.updateMany({
+      where: { id: { in: activeCases.map((c) => c.id) } },
+      data: { status: 'PENDING' },
+    }),
+    prisma.doctor.delete({ where: { id: existing.id } }),
+  ]);
+
+  for (const c of activeCases) {
+    await recordCaseStatus({
+      caseId: c.id,
+      status: 'PENDING',
+      changedByType: 'ADMIN',
+      changedById: req.admin.id,
+      note: `Returned to queue: Dr. ${existing.name} was removed`,
+    });
+  }
+
   res.status(204).send();
 });
 
@@ -488,11 +538,13 @@ const updateTicket = asyncHandler(async (req, res) => {
     },
   });
 
-  socket.emitToUser(ticket.userId, 'notification', {
+  const notice = {
     title: 'Support ticket updated',
     body: reply ? 'Support replied to your ticket.' : `Your ticket status changed to ${ticket.status}.`,
     type: 'TICKET_UPDATE',
-  });
+  };
+  await prisma.notification.create({ data: { ...notice, userId: ticket.userId, userType: 'USER' } });
+  socket.emitToUser(ticket.userId, 'notification', notice);
 
   res.json({ ticket });
 });

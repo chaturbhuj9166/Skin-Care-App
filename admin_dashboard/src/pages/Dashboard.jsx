@@ -122,7 +122,7 @@ export default function Dashboard() {
                 <span className="text-sm font-medium text-slate-700">{c.user?.name}</span>
                 <div className="flex items-center gap-2">
                   <StatusBadge status={c.status} />
-                  {!c.doctorId && (
+                  {!c.doctorId && !['SOLVED', 'CLOSED'].includes(c.status) && (
                     <button
                       type="button"
                       onClick={() => setAssigningCaseId(c.id)}

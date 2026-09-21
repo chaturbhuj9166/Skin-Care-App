@@ -41,14 +41,19 @@ class SessionController extends StateNotifier<SessionState> {
   }
 
   Future<void> _load() async {
-    final results = await Future.wait([
-      _storage.read(key: _tokenKey),
-      _storage.read(key: _roleKey),
-      SharedPreferences.getInstance(),
-    ]);
-    final token = results[0] as String?;
-    final roleStr = results[1] as String?;
-    final prefs = results[2] as SharedPreferences;
+    final prefs = await SharedPreferences.getInstance();
+    String? token;
+    String? roleStr;
+    // Secure storage can throw on Android after a reinstall/backup restore
+    // (keystore mismatch); treat that as logged out instead of hanging on splash.
+    try {
+      token = await _storage.read(key: _tokenKey);
+      roleStr = await _storage.read(key: _roleKey);
+    } catch (_) {
+      await _storage.deleteAll().catchError((_) {});
+      token = null;
+      roleStr = null;
+    }
     final role = roleStr == 'DOCTOR' ? AppRole.doctor : (roleStr == 'USER' ? AppRole.user : null);
 
     if (token != null) {

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api, apiErrorMessage } from '../lib/api';
 import { useApiQuery } from '../hooks/useApiQuery';
+import { useSocketEvent } from '../lib/socket';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import Modal from '../components/Modal';
@@ -14,6 +15,7 @@ function emptyForm() {
 
 export default function Doctors() {
   const { data, loading, error, refetch } = useApiQuery(() => api.get('/admin/doctors', { params: { limit: 100 } }), []);
+  useSocketEvent('doctor_availability_changed', refetch);
   const [editing, setEditing] = useState(null); // doctor object, or {} for new
   const [form, setForm] = useState(emptyForm());
   const [formError, setFormError] = useState(null);

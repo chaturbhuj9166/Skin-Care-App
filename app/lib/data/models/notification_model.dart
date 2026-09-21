@@ -38,7 +38,7 @@ class NotificationModel {
         id: json['id'] as String,
         title: (json['title'] as String?) ?? '',
         body: (json['body'] as String?) ?? '',
-        time: DateTime.parse(json['createdAt'] as String),
+        time: DateTime.parse(json['createdAt'] as String).toLocal(),
         isRead: (json['isRead'] as bool?) ?? false,
         type: _typeFrom(json['type'] as String?),
         caseId: json['caseId'] as String?,

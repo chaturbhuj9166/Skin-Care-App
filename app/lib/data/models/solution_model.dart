@@ -36,8 +36,8 @@ class SolutionModel {
               ))
           .toList(),
       note: (prescriptionJson['instructions'] as String?) ?? '',
-      issuedAt: DateTime.parse(json['createdAt'] as String),
-      followUpDate: json['followUpDate'] != null ? DateTime.parse(json['followUpDate'] as String) : null,
+      issuedAt: DateTime.parse(json['createdAt'] as String).toLocal(),
+      followUpDate: json['followUpDate'] != null ? DateTime.parse(json['followUpDate'] as String).toLocal() : null,
       attachmentUrl: prescriptionJson['attachmentUrl'] as String?,
     );
   }
@@ -49,6 +49,6 @@ class SolutionModel {
           'instructions': note,
           if (attachmentUrl != null) 'attachmentUrl': attachmentUrl,
         },
-        if (followUpDate != null) 'followUpDate': followUpDate!.toIso8601String(),
+        if (followUpDate != null) 'followUpDate': followUpDate!.toUtc().toIso8601String(),
       };
 }

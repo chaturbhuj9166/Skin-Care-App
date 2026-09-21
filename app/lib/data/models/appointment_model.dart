@@ -37,7 +37,7 @@ class AppointmentModel {
       caseId: (caseJson['id'] as String?) ?? json['caseId'] as String,
       patientOrDoctorName: name,
       avatarSeed: name.hashCode,
-      scheduledAt: DateTime.parse(json['scheduledAt'] as String),
+      scheduledAt: DateTime.parse(json['scheduledAt'] as String).toLocal(),
       status: _statusFrom(json['status'] as String? ?? 'SCHEDULED'),
     );
   }

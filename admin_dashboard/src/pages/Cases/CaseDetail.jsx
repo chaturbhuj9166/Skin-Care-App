@@ -12,7 +12,7 @@ import { Loading, ErrorMessage } from '../../components/Feedback';
 const NEXT_STATUSES = {
   PENDING: [],
   ASSIGNED: ['IN_REVIEW', 'CLOSED'],
-  IN_REVIEW: ['SOLVED', 'CLOSED'],
+  IN_REVIEW: ['CLOSED'],
   SOLVED: ['CLOSED'],
   CLOSED: [],
 };
@@ -118,17 +118,25 @@ export default function CaseDetail() {
         <div className="flex flex-col gap-4">
           <Card>
             <h3 className="mb-3 text-sm font-semibold text-slate-600">Assign doctor</h3>
-            <Select value={selectedDoctor} onChange={(e) => setSelectedDoctor(e.target.value)}>
-              <option value="">Select a doctor…</option>
-              {doctorsData?.data?.map((d) => (
-                <option key={d.id} value={d.id}>{d.name}{d.isAvailable ? '' : ' (unavailable)'}</option>
-              ))}
-            </Select>
-            <Button className="mt-3 w-full" disabled={!selectedDoctor || busy} onClick={handleAssign}>
-              {caseRecord.doctor ? 'Reassign' : 'Assign'}
-            </Button>
-            {caseRecord.doctor && (
-              <p className="mt-2 text-xs text-slate-400">Currently: {caseRecord.doctor.name}</p>
+            {['SOLVED', 'CLOSED'].includes(caseRecord.status) ? (
+              <p className="text-sm text-slate-400">
+                This case is {caseRecord.status.toLowerCase()}{caseRecord.doctor ? ` (by ${caseRecord.doctor.name})` : ''} and can no longer be reassigned.
+              </p>
+            ) : (
+              <>
+                <Select value={selectedDoctor} onChange={(e) => setSelectedDoctor(e.target.value)}>
+                  <option value="">Select a doctor…</option>
+                  {doctorsData?.data?.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}{d.isAvailable ? '' : ' (unavailable)'}</option>
+                  ))}
+                </Select>
+                <Button className="mt-3 w-full" disabled={!selectedDoctor || busy} onClick={handleAssign}>
+                  {caseRecord.doctor ? 'Reassign' : 'Assign'}
+                </Button>
+                {caseRecord.doctor && (
+                  <p className="mt-2 text-xs text-slate-400">Currently: {caseRecord.doctor.name}</p>
+                )}
+              </>
             )}
           </Card>
 

@@ -10,6 +10,8 @@ router.use(authenticate, requireDoctor);
 
 const CASE_STATUSES = ['PENDING', 'ASSIGNED', 'IN_REVIEW', 'SOLVED', 'CLOSED'];
 
+const dateString = z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'Must be a valid date');
+
 const updateProfileSchema = z.object({
   name: z.string().min(1).optional(),
   specialization: z.string().optional(),
@@ -30,7 +32,7 @@ const listCasesQuerySchema = z.object({
 const addSolutionSchema = z.object({
   text: z.string().min(1),
   prescription: z.any(),
-  followUpDate: z.string().datetime().optional().or(z.string().optional()),
+  followUpDate: dateString.optional().nullable(),
 });
 
 const messageSchema = z
@@ -41,7 +43,7 @@ const messageSchema = z
   .refine((data) => data.text || data.fileUrl, { message: 'Either text or fileUrl is required' });
 
 const scheduleCallSchema = z.object({
-  scheduledAt: z.string().min(1),
+  scheduledAt: dateString,
 });
 
 router.get('/profile', doctorController.getProfile);

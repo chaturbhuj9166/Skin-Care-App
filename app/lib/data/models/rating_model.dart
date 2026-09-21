@@ -8,6 +8,6 @@ class RatingModel {
   factory RatingModel.fromJson(Map<String, dynamic> json) => RatingModel(
         score: (json['score'] as num).toInt(),
         comment: json['comment'] as String?,
-        createdAt: DateTime.parse(json['createdAt'] as String),
+        createdAt: DateTime.parse(json['createdAt'] as String).toLocal(),
       );
 }

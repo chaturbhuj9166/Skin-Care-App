@@ -18,7 +18,7 @@ class DoctorDashboardScreen extends ConsumerWidget {
     final doctor = repo.currentDoctor;
     final cases = repo.doctorCases;
     final pending = cases.where((c) => c.status == CaseStatus.pending || c.status == CaseStatus.assigned).length;
-    final solvedToday = cases.where((c) => c.status == CaseStatus.solved).length;
+    final solvedToday = cases.where((c) => c.status == CaseStatus.solved || c.status == CaseStatus.closed).length;
 
     return ListView(
       padding: EdgeInsets.zero,

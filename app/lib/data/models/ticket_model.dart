@@ -76,7 +76,7 @@ class TicketModel {
         description: (json['description'] as String?) ?? '',
         priority: _priorityFrom(json['priority'] as String? ?? 'MEDIUM'),
         status: _statusFrom(json['status'] as String? ?? 'OPEN'),
-        createdAt: DateTime.parse(json['createdAt'] as String),
+        createdAt: DateTime.parse(json['createdAt'] as String).toLocal(),
         adminReply: json['reply'] as String?,
       );
 }

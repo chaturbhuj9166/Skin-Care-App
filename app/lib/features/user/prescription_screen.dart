@@ -140,7 +140,7 @@ class PrescriptionScreen extends ConsumerWidget {
                   const SizedBox(height: 12),
                   const Text('FOLLOW UP', style: TextStyle(color: AppColors.textMuted, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.6)),
                   const SizedBox(height: 6),
-                  Text('After 4 weeks (${DateFormat('dd MMM yyyy').format(solution.followUpDate!)})',
+                  Text(DateFormat('dd MMM yyyy').format(solution.followUpDate!),
                       style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
                 ],
                 if (solution.attachmentUrl != null) ...[

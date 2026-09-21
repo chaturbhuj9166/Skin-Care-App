@@ -2,7 +2,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:uuid/uuid.dart';
 import 'api_client.dart';
 import 'socket_service.dart';
 import '../models/appointment_model.dart';
@@ -135,21 +134,34 @@ class ApiRepository extends ChangeNotifier {
   void _listenSocket() {
     if (_socketBound) return;
     _socketBound = true;
-    SocketService.instance.on('notification', (data) {
-      final map = (data as Map).cast<String, dynamic>();
-      notifications.insert(
-        0,
-        NotificationModel(
-          id: const Uuid().v4(),
-          title: map['title'] as String? ?? '',
-          body: map['body'] as String? ?? '',
-          time: DateTime.now(),
-        ),
-      );
-      notifyListeners();
+    // The socket payload has no persisted id/caseId, so re-read the saved rows
+    // instead of inventing one (tapping an invented id 404s and can't navigate).
+    SocketService.instance.on('notification', (_) {
+      if (!_isDoctorMode) refreshNotifications();
     });
     SocketService.instance.on('case_assigned', (_) => refreshCases());
     SocketService.instance.on('solution_added', (_) => refreshCases());
+    SocketService.instance.on('call_scheduled', (_) {
+      refreshAppointments();
+      refreshCases();
+    });
+  }
+
+  Future<void> refreshNotifications() async {
+    final res = await _dio.get('/users/notifications');
+    notifications
+      ..clear()
+      ..addAll(((res.data['data'] as List)).map((n) => NotificationModel.fromJson(n as Map<String, dynamic>)));
+    notifyListeners();
+  }
+
+  Future<void> refreshAppointments() async {
+    final res = await _dio.get(_isDoctorMode ? '/doctors/appointments' : '/users/appointments');
+    appointments
+      ..clear()
+      ..addAll(((res.data['data'] as List))
+          .map((a) => AppointmentModel.fromJson(a as Map<String, dynamic>, isDoctorView: _isDoctorMode)));
+    notifyListeners();
   }
 
   Future<void> refreshCases() async {
@@ -202,10 +214,10 @@ class ApiRepository extends ChangeNotifier {
   }
 
   Future<void> scheduleCall(String caseId, DateTime at) async {
-    await _dio.post('/doctors/cases/$caseId/schedule-call', data: {'scheduledAt': at.toIso8601String()});
+    await _dio.post('/doctors/cases/$caseId/schedule-call', data: {'scheduledAt': at.toUtc().toIso8601String()});
     final idx = cases.indexWhere((c) => c.id == caseId);
     if (idx != -1) cases[idx].scheduledCallAt = at;
-    notifyListeners();
+    await refreshAppointments();
   }
 
   Future<void> markNotificationRead(String id) async {
