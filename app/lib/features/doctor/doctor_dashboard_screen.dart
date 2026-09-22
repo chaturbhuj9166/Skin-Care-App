@@ -9,6 +9,13 @@ import '../../core/widgets/status_chip.dart';
 import '../../data/models/case_model.dart';
 import '../../data/api/api_repository.dart';
 
+String _greeting() {
+  final h = DateTime.now().hour;
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
 class DoctorDashboardScreen extends ConsumerWidget {
   const DoctorDashboardScreen({super.key});
 
@@ -38,9 +45,12 @@ class DoctorDashboardScreen extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Doctor Dashboard', style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white)),
+                          Text('${_greeting()} 👋', style: const TextStyle(color: Colors.white70, fontSize: 12.5)),
+                          const SizedBox(height: 2),
+                          Text(doctor.name, style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white)),
                           const SizedBox(height: 3),
-                          Text(doctor.specialization, style: const TextStyle(color: Colors.white70, fontSize: 12.5)),
+                          Text('${doctor.specialization} · ${DateFormat('EEE, d MMM').format(DateTime.now())}',
+                              style: const TextStyle(color: Colors.white70, fontSize: 12.5)),
                         ],
                       ),
                     ),

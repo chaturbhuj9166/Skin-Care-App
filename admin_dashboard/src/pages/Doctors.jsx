@@ -10,7 +10,7 @@ import Field, { TextInput } from '../components/Field';
 import { Loading, ErrorMessage } from '../components/Feedback';
 
 function emptyForm() {
-  return { name: '', email: '', phone: '', specialization: '', experience: '' };
+  return { name: '', email: '', phone: '', specialization: '', experience: '', password: '' };
 }
 
 export default function Doctors() {
@@ -28,7 +28,7 @@ export default function Doctors() {
     setEditing({});
   }
   function openEdit(doctor) {
-    setForm({ name: doctor.name, email: doctor.email, phone: doctor.phone, specialization: doctor.specialization || '', experience: doctor.experience || '' });
+    setForm({ name: doctor.name, email: doctor.email, phone: doctor.phone, specialization: doctor.specialization || '', experience: doctor.experience || '', password: '' });
     setFormError(null);
     setEditing(doctor);
   }
@@ -43,6 +43,8 @@ export default function Doctors() {
         phone: form.phone,
         specialization: form.specialization || undefined,
         experience: form.experience ? Number(form.experience) : undefined,
+        // Blank on edit = keep the current password.
+        password: form.password || undefined,
       };
       if (editing.id) {
         await api.put(`/admin/doctors/${editing.id}`, payload);
@@ -125,11 +127,14 @@ export default function Doctors() {
       }>
         <Field label="Name"><TextInput value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
         <Field label="Email"><TextInput type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
-        <Field label="Phone (this is the doctor's OTP login number)">
+        <Field label="Phone">
           <TextInput value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+919810000000" />
         </Field>
         <Field label="Specialization"><TextInput value={form.specialization} onChange={(e) => setForm({ ...form, specialization: e.target.value })} /></Field>
         <Field label="Experience (years)"><TextInput type="number" value={form.experience} onChange={(e) => setForm({ ...form, experience: e.target.value })} /></Field>
+        <Field label={editing?.id ? 'New password (leave blank to keep current)' : 'Login password (doctor signs in with email + this password)'}>
+          <TextInput type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Min. 6 characters" autoComplete="new-password" />
+        </Field>
         {formError && <ErrorMessage message={formError} />}
       </Modal>
 

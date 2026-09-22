@@ -1,5 +1,7 @@
 const bcrypt = require('bcryptjs');
 const prisma = require('../config/db');
+const env = require('../config/env');
+const otpService = require('../services/otp');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/ApiError');
 const sanitize = require('../utils/sanitize');
@@ -33,50 +35,32 @@ const userRegister = asyncHandler(async (req, res) => {
   res.status(201).json({ token, user });
 });
 
-// POST /api/auth/user/login
-// NOTE (mock provider): in production this would only run AFTER the client
-// verifies a Firebase Phone-Auth OTP. Since no Firebase project is wired up
-// here, this endpoint trusts the phone number as-is: it looks the user up
-// (or creates a lightweight account on first login) and issues a JWT.
-// See POST /api/auth/verify-otp for the OTP-flow-shaped equivalent.
-const userLogin = asyncHandler(async (req, res) => {
+// POST /api/auth/send-otp
+// Generates a fresh 6-digit code for this phone number. No SMS provider is
+// wired up yet, so while env.OTP_SHOW_IN_RESPONSE is on (the default) the
+// code is returned as `devOtp` and the app shows it on screen.
+const sendOtp = asyncHandler(async (req, res) => {
   const { phone } = req.body;
 
-  let user = await prisma.user.findUnique({ where: { phone } });
-  if (!user) {
-    user = await prisma.user.create({ data: { name: 'New User', phone } });
-  }
-  if (user.isBlocked) throw ApiError.forbidden('This account has been blocked');
+  const existing = await prisma.user.findUnique({ where: { phone } });
+  if (existing?.isBlocked) throw ApiError.forbidden('This account has been blocked');
 
-  const token = signToken({ id: user.id, role: ROLES.USER });
-  res.json({ token, user });
+  const { code, expiresInSeconds } = await otpService.sendOtp(phone);
+  res.json({
+    message: 'OTP sent',
+    expiresInSeconds,
+    ...(env.OTP_SHOW_IN_RESPONSE && { devOtp: code }),
+  });
 });
 
-// POST /api/auth/verify-otp
-// NOTE (mock provider): there is no real SMS/OTP provider wired up yet.
-// ANY syntactically valid 6-digit code is accepted as correct - swap the
-// body of this handler for a real verification call once a provider
-// (Firebase/MSG91/etc.) is integrated.
-//
-// This single endpoint serves BOTH the User app and Doctor app logins from
-// one phone-number form: a Doctor account only ever exists if an Admin
-// created it (see admin.controller.js's createDoctor), so a phone number
-// matching a Doctor record here proves this login belongs to that doctor -
-// nobody can self-register as a doctor. Any other phone number is treated
-// as a User, auto-creating a lightweight account on first login same as
-// before.
+// POST /api/auth/verify-otp  (also served as POST /api/auth/user/login)
+// Patient login: checks the code issued by send-otp, then finds the User
+// for this number (or creates a lightweight account on first login) and
+// issues their JWT. Doctors do not log in here - they use email + password
+// (POST /api/auth/doctor/login).
 const verifyOtp = asyncHandler(async (req, res) => {
   const { phone, otp } = req.body;
-
-  if (!/^\d{6}$/.test(otp)) {
-    throw ApiError.badRequest('OTP must be a 6-digit code');
-  }
-
-  const doctor = await prisma.doctor.findUnique({ where: { phone } });
-  if (doctor) {
-    const token = signToken({ id: doctor.id, role: ROLES.DOCTOR });
-    return res.json({ token, role: 'DOCTOR', doctor: sanitize(doctor) });
-  }
+  await otpService.verifyOtp(phone, otp);
 
   let user = await prisma.user.findUnique({ where: { phone } });
   if (!user) {
@@ -88,4 +72,19 @@ const verifyOtp = asyncHandler(async (req, res) => {
   res.json({ token, role: 'USER', user });
 });
 
-module.exports = { adminLogin, userRegister, userLogin, verifyOtp };
+// POST /api/auth/doctor/login
+// Doctor accounts are only ever created by an Admin, who sets the password.
+const doctorLogin = asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
+
+  const doctor = await prisma.doctor.findUnique({ where: { email: email.toLowerCase() } });
+  if (!doctor || !doctor.password) throw ApiError.unauthorized('Invalid email or password');
+
+  const valid = await bcrypt.compare(password, doctor.password);
+  if (!valid) throw ApiError.unauthorized('Invalid email or password');
+
+  const token = signToken({ id: doctor.id, role: ROLES.DOCTOR });
+  res.json({ token, role: 'DOCTOR', doctor: sanitize(doctor) });
+});
+
+module.exports = { adminLogin, userRegister, sendOtp, verifyOtp, doctorLogin, SALT_ROUNDS };

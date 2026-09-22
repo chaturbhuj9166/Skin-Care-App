@@ -7,10 +7,9 @@ void main() {
   runApp(const ProviderScope(child: SkinCareApp()));
 }
 
-/// One app for both roles: the login screen only ever asks for a phone
-/// number, and the server decides at OTP verification whether this is a
-/// User or a Doctor session (see auth.controller.js's verifyOtp) - from
-/// there [appRouterProvider] sends the session to the matching home screen.
+/// One app (one APK) for both roles: patients log in with phone + OTP,
+/// doctors with email + password, and [appRouterProvider] sends each
+/// session to the matching home screen.
 class SkinCareApp extends ConsumerWidget {
   const SkinCareApp({super.key});
 

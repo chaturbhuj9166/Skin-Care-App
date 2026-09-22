@@ -1,4 +1,5 @@
 const { v4: uuidv4 } = require('uuid');
+const bcrypt = require('bcryptjs');
 const prisma = require('../config/db');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/ApiError');
@@ -45,6 +46,20 @@ const updateProfile = asyncHandler(async (req, res) => {
 
   const { password, ...safeDoctor } = doctor;
   res.json({ doctor: { ...safeDoctor, ...(await ratingSummary(doctor.id)) } });
+});
+
+// PUT /api/doctors/profile/password
+const changePassword = asyncHandler(async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+
+  const existing = await prisma.doctor.findUnique({ where: { id: req.doctor.id } });
+  const valid = existing.password && (await bcrypt.compare(oldPassword, existing.password));
+  if (!valid) throw ApiError.badRequest('Current password is incorrect');
+
+  const hashed = await bcrypt.hash(newPassword, 10);
+  await prisma.doctor.update({ where: { id: existing.id }, data: { password: hashed } });
+
+  res.json({ success: true });
 });
 
 // PUT /api/doctors/availability
@@ -301,6 +316,7 @@ const getAnalytics = asyncHandler(async (req, res) => {
 module.exports = {
   getProfile,
   updateProfile,
+  changePassword,
   updateAvailability,
   listCases,
   getCaseById,

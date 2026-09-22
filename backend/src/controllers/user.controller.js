@@ -114,6 +114,11 @@ const listCases = asyncHandler(async (req, res) => {
 const createCase = asyncHandler(async (req, res) => {
   const { questionFlowId, answers, photos } = req.body;
 
+  // The doctor needs the patient's age and gender to review a case.
+  if (!req.user.age || !req.user.gender) {
+    throw ApiError.badRequest('Please add your age and gender before submitting a case');
+  }
+
   const flow = await prisma.questionFlow.findUnique({ where: { id: questionFlowId } });
   if (!flow) throw ApiError.badRequest('Invalid questionFlowId');
   if (!flow.isActive) throw ApiError.badRequest('This question flow is no longer active. Please load the current questionnaire.');

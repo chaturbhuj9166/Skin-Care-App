@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -159,6 +160,17 @@ class _SubmitProblemScreenState extends ConsumerState<SubmitProblemScreen> {
   }
 
   Future<void> _submit(List<QuestionModel> questions) async {
+    // Doctors need the patient's age and gender, so confirm them (pre-filled
+    // from the profile) before every submission.
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => const _PatientDetailsSheet(),
+    );
+    if (confirmed != true || !mounted) return;
+
     setState(() => _submitting = true);
     final answers = <String, dynamic>{};
     for (final q in questions) {
@@ -288,6 +300,157 @@ class _SubmitProblemScreenState extends ConsumerState<SubmitProblemScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// "Tell the doctor about you" sheet: age + gender, saved to the profile.
+class _PatientDetailsSheet extends ConsumerStatefulWidget {
+  const _PatientDetailsSheet();
+
+  @override
+  ConsumerState<_PatientDetailsSheet> createState() => _PatientDetailsSheetState();
+}
+
+class _PatientDetailsSheetState extends ConsumerState<_PatientDetailsSheet> {
+  static const _genders = [
+    (label: 'Male', icon: Icons.male_rounded),
+    (label: 'Female', icon: Icons.female_rounded),
+    (label: 'Other', icon: Icons.transgender_rounded),
+  ];
+
+  late final _ageController = TextEditingController(text: ref.read(apiRepositoryProvider).currentUser.age?.toString() ?? '');
+  late String? _gender = ref.read(apiRepositoryProvider).currentUser.gender;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _ageController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final age = int.tryParse(_ageController.text.trim());
+    if (age == null || age < 1 || age > 120) {
+      setState(() => _error = 'Please enter a valid age');
+      return;
+    }
+    if (_gender == null) {
+      setState(() => _error = 'Please select your gender');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final repo = ref.read(apiRepositoryProvider);
+      if (repo.currentUser.age != age || repo.currentUser.gender != _gender) {
+        await repo.updateProfile(age: age, gender: _gender);
+      }
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = apiErrorMessage(e);
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(context).viewInsets.bottom + 20),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2))),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(color: AppColors.primaryLight, borderRadius: BorderRadius.circular(14)),
+                  child: const Icon(Icons.badge_rounded, color: AppColors.primary),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('A little about you', style: Theme.of(context).textTheme.titleLarge),
+                      const SizedBox(height: 2),
+                      const Text('Your doctor needs this to review your case.', style: TextStyle(color: AppColors.textLight, fontSize: 12.5)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 22),
+            const Text('Age', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _ageController,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(3)],
+              decoration: const InputDecoration(hintText: 'e.g. 25', suffixText: 'years'),
+            ),
+            const SizedBox(height: 18),
+            const Text('Gender', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+            const SizedBox(height: 8),
+            Row(
+              children: _genders.map((g) {
+                final selected = _gender == g.label;
+                return Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(right: g.label == 'Other' ? 0 : 10),
+                    child: InkWell(
+                      onTap: () => setState(() => _gender = g.label),
+                      borderRadius: BorderRadius.circular(14),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color: selected ? AppColors.primaryLight : AppColors.surface,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: selected ? AppColors.primary : AppColors.border, width: selected ? 1.6 : 1),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(g.icon, color: selected ? AppColors.primary : AppColors.textLight),
+                            const SizedBox(height: 4),
+                            Text(g.label,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                  color: selected ? AppColors.primary : AppColors.textDark,
+                                )),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(_error!, style: const TextStyle(color: AppColors.error, fontSize: 12.5)),
+            ],
+            const SizedBox(height: 22),
+            PrimaryButton(label: 'Confirm & Submit Case', icon: Icons.send_rounded, loading: _saving, onPressed: _save),
+          ],
+        ),
       ),
     );
   }

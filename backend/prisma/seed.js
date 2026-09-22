@@ -56,7 +56,8 @@ async function main() {
   console.log(`  Admin ready: ${admin.email} (password: Admin@123)`);
 
   // ---- Doctors ---------------------------------------------------------
-  // No password: doctors log in with phone+OTP, same as Users.
+  // Doctors log in with email + password (all demo doctors: Doctor@123).
+  const doctorPassword = await bcrypt.hash('Doctor@123', SALT_ROUNDS);
   const doctorSeeds = [
     {
       name: 'Dr. Ayesha Khan',
@@ -90,14 +91,18 @@ async function main() {
 
   const doctors = [];
   for (const seed of doctorSeeds) {
-    const doctor = await prisma.doctor.upsert({
+    let doctor = await prisma.doctor.upsert({
       where: { email: seed.email },
       update: {},
-      create: seed,
+      create: { ...seed, password: doctorPassword },
     });
+    // Doctors seeded before password login existed have no password yet.
+    if (!doctor.password) {
+      doctor = await prisma.doctor.update({ where: { id: doctor.id }, data: { password: doctorPassword } });
+    }
     doctors.push(doctor);
   }
-  console.log(`  ${doctors.length} doctors ready (login via phone, any 6-digit OTP)`);
+  console.log(`  ${doctors.length} doctors ready (email login, password: Doctor@123)`);
 
   // ---- Users ---------------------------------------------------------
   const userSeeds = [
@@ -115,7 +120,7 @@ async function main() {
     });
     users.push(user);
   }
-  console.log(`  ${users.length} demo users ready (login via phone, any 6-digit OTP)`);
+  console.log(`  ${users.length} demo users ready (login via phone + OTP shown on screen)`);
 
   // ---- Question flow ---------------------------------------------------------
   let flow = await prisma.questionFlow.findFirst({ where: { title: 'Skin Consultation Intake' } });

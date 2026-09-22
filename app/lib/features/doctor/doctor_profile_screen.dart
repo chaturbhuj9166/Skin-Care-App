@@ -83,6 +83,7 @@ class DoctorProfileScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 10),
           _ProfileTile(icon: Icons.edit_outlined, label: 'Edit Profile', onTap: () => _editProfileSheet(context, ref)),
+          _ProfileTile(icon: Icons.lock_reset_rounded, label: 'Change Password', onTap: () => _changePasswordSheet(context, ref)),
           _ProfileTile(icon: Icons.calendar_today_outlined, label: 'Appointments', onTap: () => context.push('/doctor-appointments')),
           _ProfileTile(
             icon: Icons.support_agent_rounded,
@@ -160,6 +161,78 @@ class DoctorProfileScreen extends ConsumerWidget {
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
     }
+  }
+
+  void _changePasswordSheet(BuildContext context, WidgetRef ref) {
+    final repo = ref.read(apiRepositoryProvider);
+    final oldController = TextEditingController();
+    final newController = TextEditingController();
+    final confirmController = TextEditingController();
+    bool saving = false;
+    String? error;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetContext) => StatefulBuilder(builder: (sheetContext, setSheetState) {
+        Future<void> save() async {
+          if (newController.text.length < 6) {
+            setSheetState(() => error = 'New password must be at least 6 characters');
+            return;
+          }
+          if (newController.text != confirmController.text) {
+            setSheetState(() => error = 'New passwords do not match');
+            return;
+          }
+          setSheetState(() {
+            saving = true;
+            error = null;
+          });
+          try {
+            await repo.changeDoctorPassword(oldController.text, newController.text);
+            if (!sheetContext.mounted) return;
+            Navigator.pop(sheetContext);
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password updated')));
+          } catch (e) {
+            setSheetState(() {
+              saving = false;
+              error = apiErrorMessage(e);
+            });
+          }
+        }
+
+        return Padding(
+          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(sheetContext).viewInsets.bottom + 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Change Password', style: Theme.of(sheetContext).textTheme.headlineSmall),
+              const SizedBox(height: 16),
+              TextField(controller: oldController, obscureText: true, decoration: const InputDecoration(labelText: 'Current password')),
+              const SizedBox(height: 12),
+              TextField(controller: newController, obscureText: true, decoration: const InputDecoration(labelText: 'New password')),
+              const SizedBox(height: 12),
+              TextField(controller: confirmController, obscureText: true, decoration: const InputDecoration(labelText: 'Confirm new password')),
+              if (error != null) ...[
+                const SizedBox(height: 10),
+                Text(error!, style: const TextStyle(color: AppColors.error, fontSize: 12.5)),
+              ],
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: saving ? null : save,
+                  child: Text(saving ? 'Updating…' : 'Update Password'),
+                ),
+              ),
+            ],
+          ),
+        );
+      }),
+    );
   }
 
   void _editProfileSheet(BuildContext context, WidgetRef ref) {

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'core/session/session_controller.dart';
 import 'data/api/api_repository.dart';
+import 'data/api/auth_api.dart';
 import 'data/models/message_model.dart';
 import 'features/doctor/doctor_appointments_screen.dart';
 import 'features/doctor/doctor_case_detail_screen.dart';
@@ -25,9 +26,9 @@ import 'features/user/submit_problem_screen.dart';
 import 'features/user/tickets_screen.dart';
 import 'features/user/user_shell.dart';
 
-/// One router for one app: a single phone+OTP login decides, from the
-/// server's response, whether this session is a User or a Doctor, and every
-/// screen from both roles lives in this same route tree from then on.
+/// One router for one app: the login screen signs in either a patient
+/// (phone + OTP) or a doctor (email + password), and every screen from both
+/// roles lives in this same route tree from then on.
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/splash',
@@ -46,6 +47,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       final onAuthFlow = loc == '/onboarding' || loc == '/login' || loc == '/verify-otp';
       if (!session.loggedIn && !onAuthFlow) return '/onboarding';
+      // The OTP screen needs the pending request; a refresh/deep link loses it.
+      if (loc == '/verify-otp' && state.extra is! OtpRequest) return '/login';
       if (session.loggedIn && onAuthFlow) return session.role == AppRole.doctor ? '/dashboard' : '/home';
       return null;
     },
@@ -56,7 +59,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
         path: '/verify-otp',
-        builder: (context, state) => OtpScreen(phone: state.extra as String? ?? ''),
+        builder: (context, state) => OtpScreen(request: state.extra as OtpRequest),
       ),
 
       // ---- User ----

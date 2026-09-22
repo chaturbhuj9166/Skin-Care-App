@@ -19,6 +19,11 @@ const updateProfileSchema = z.object({
   avatar: z.string().optional(),
 });
 
+const changePasswordSchema = z.object({
+  oldPassword: z.string().min(1),
+  newPassword: z.string().min(6, 'Password must be at least 6 characters'),
+});
+
 const updateAvailabilitySchema = z.object({
   isAvailable: z.boolean(),
 });
@@ -48,6 +53,7 @@ const scheduleCallSchema = z.object({
 
 router.get('/profile', doctorController.getProfile);
 router.put('/profile', validate({ body: updateProfileSchema }), doctorController.updateProfile);
+router.put('/profile/password', validate({ body: changePasswordSchema }), doctorController.changePassword);
 router.put('/availability', validate({ body: updateAvailabilitySchema }), doctorController.updateAvailability);
 
 router.get('/cases', validate({ query: listCasesQuerySchema }), doctorController.listCases);

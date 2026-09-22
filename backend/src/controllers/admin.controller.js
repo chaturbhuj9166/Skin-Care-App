@@ -387,7 +387,8 @@ const getDoctorById = asyncHandler(async (req, res) => {
 
 // POST /api/admin/doctors
 const createDoctor = asyncHandler(async (req, res) => {
-  const { name, email, phone, specialization, experience } = req.body;
+  const { name, phone, specialization, experience, password } = req.body;
+  const email = req.body.email.toLowerCase();
 
   const existingEmail = await prisma.doctor.findUnique({ where: { email } });
   if (existingEmail) throw ApiError.conflict('A doctor with this email already exists');
@@ -395,10 +396,10 @@ const createDoctor = asyncHandler(async (req, res) => {
   const existingPhone = await prisma.doctor.findUnique({ where: { phone } });
   if (existingPhone) throw ApiError.conflict('A doctor with this phone number already exists');
 
-  // No password: doctors log in with phone+OTP, the same flow as Users (see
-  // auth.controller.js's verifyOtp) - this phone number IS their login.
+  // Doctors log in with this email + password (POST /api/auth/doctor/login).
+  const hashed = await bcrypt.hash(password, SALT_ROUNDS);
   const doctor = await prisma.doctor.create({
-    data: { name, email, phone, specialization, experience },
+    data: { name, email, phone, specialization, experience, password: hashed },
   });
 
   res.status(201).json({ doctor: sanitize(doctor) });
@@ -406,7 +407,8 @@ const createDoctor = asyncHandler(async (req, res) => {
 
 // PUT /api/admin/doctors/:id
 const updateDoctor = asyncHandler(async (req, res) => {
-  const { name, email, phone, specialization, experience, isAvailable, avatar } = req.body;
+  const { name, phone, specialization, experience, isAvailable, avatar, password } = req.body;
+  const email = req.body.email?.toLowerCase();
 
   const existing = await prisma.doctor.findUnique({ where: { id: req.params.id } });
   if (!existing) throw ApiError.notFound('Doctor not found');
@@ -419,6 +421,7 @@ const updateDoctor = asyncHandler(async (req, res) => {
     ...(experience !== undefined && { experience }),
     ...(isAvailable !== undefined && { isAvailable }),
     ...(avatar !== undefined && { avatar }),
+    ...(password !== undefined && { password: await bcrypt.hash(password, SALT_ROUNDS) }),
   };
 
   const doctor = await prisma.doctor.update({ where: { id: existing.id }, data });

@@ -277,6 +277,10 @@ class ApiRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> changeDoctorPassword(String oldPassword, String newPassword) async {
+    await _dio.put('/doctors/profile/password', data: {'oldPassword': oldPassword, 'newPassword': newPassword});
+  }
+
   /// Uploads an image to the backend's local file store (see
   /// backend/src/middleware/upload.js) and returns its public URL. Works
   /// uniformly on web and mobile since it reads bytes rather than a file path.

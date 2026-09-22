@@ -15,6 +15,11 @@ const env = {
 
   CORS_ORIGIN: process.env.CORS_ORIGIN || '*',
 
+  // No SMS provider is wired up yet, so by default the generated OTP is sent
+  // back in the send-otp response and the app shows it on screen. Set to
+  // "false" once real SMS delivery (Firebase/MSG91/...) is integrated.
+  OTP_SHOW_IN_RESPONSE: process.env.OTP_SHOW_IN_RESPONSE !== 'false',
+
   FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || '',
   FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY || '',
   FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL || '',

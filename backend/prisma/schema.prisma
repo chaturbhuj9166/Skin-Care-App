@@ -90,9 +90,8 @@ model Doctor {
   specialization String?
   experience     Int?
   isAvailable    Boolean  @default(true)
-  // Doctors log in with phone+OTP (see auth.controller.js's verifyOtp), the
-  // same as Users - this is unused today, kept only in case a
-  // password-based fallback is ever needed.
+  // bcrypt hash. Doctors log in with email + password (POST
+  // /api/auth/doctor/login); the Admin sets it when creating the doctor.
   password       String?
   createdAt      DateTime @default(now())
 
@@ -189,6 +188,20 @@ model Notification {
   createdAt DateTime             @default(now())
 
   @@index([userId, userType])
+}
+
+// One-time login codes for phone (User) login. Only a hash of the code is
+// stored; a row is single-use (consumedAt) and expires after a few minutes.
+model OtpCode {
+  id         String    @id @default(uuid())
+  phone      String
+  codeHash   String
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([phone, createdAt])
 }
 
 model Rating {

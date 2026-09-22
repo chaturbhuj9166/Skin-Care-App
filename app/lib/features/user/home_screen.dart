@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,6 +28,20 @@ const _recommended = [
   (title: 'Daily Skin Care', subtitle: 'Routine', icon: Icons.wb_sunny_rounded, color: AppColors.secondary),
 ];
 
+const _skinTips = [
+  (title: 'Never skip sunscreen', body: 'Use SPF 30+ every morning - even indoors and on cloudy days.', icon: Icons.wb_sunny_rounded, colors: [Color(0xFFF59E0B), Color(0xFFF97316)]),
+  (title: 'Hydrate from within', body: '8 glasses of water a day keeps skin plump and helps it repair.', icon: Icons.water_drop_rounded, colors: [Color(0xFF0EA5E9), Color(0xFF0A7C6E)]),
+  (title: 'Clean your pillowcase', body: 'Change it twice a week - oil and bacteria build up and cause breakouts.', icon: Icons.bed_rounded, colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)]),
+  (title: 'Hands off your face', body: 'Picking or popping pimples spreads bacteria and can leave scars.', icon: Icons.back_hand_rounded, colors: [Color(0xFF22C55E), Color(0xFF0A7C6E)]),
+];
+
+String _greeting() {
+  final h = DateTime.now().hour;
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -46,9 +61,9 @@ class HomeScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Hi, ${user.name.split(' ').first} 👋', style: Theme.of(context).textTheme.headlineSmall),
+                    Text(_greeting(), style: const TextStyle(color: AppColors.textLight, fontSize: 13)),
                     const SizedBox(height: 2),
-                    const Text('How is your skin today?', style: TextStyle(color: AppColors.textLight, fontSize: 13)),
+                    Text('Hello, ${user.name.split(' ').first} 👋', style: Theme.of(context).textTheme.headlineSmall),
                   ],
                 ),
               ),
@@ -184,6 +199,10 @@ class HomeScreen extends ConsumerWidget {
             }).toList(),
           ),
           const SizedBox(height: 26),
+          Text('Skin Tips', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 12),
+          const _SkinTipsCarousel(),
+          const SizedBox(height: 22),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -231,7 +250,179 @@ class HomeScreen extends ConsumerWidget {
               },
             ),
           ),
+          const SizedBox(height: 26),
+          Text('How it works', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 12),
+          const _HowItWorks(),
         ],
+      ),
+    );
+  }
+}
+
+/// Auto-advancing tip cards with page dots (spec: "Skin tips carousel").
+class _SkinTipsCarousel extends StatefulWidget {
+  const _SkinTipsCarousel();
+
+  @override
+  State<_SkinTipsCarousel> createState() => _SkinTipsCarouselState();
+}
+
+class _SkinTipsCarouselState extends State<_SkinTipsCarousel> {
+  final _controller = PageController(viewportFraction: 0.9);
+  int _page = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!_controller.hasClients) return;
+      _controller.animateToPage((_page + 1) % _skinTips.length, duration: const Duration(milliseconds: 500), curve: Curves.easeOutCubic);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        SizedBox(
+          height: 118,
+          child: PageView.builder(
+            controller: _controller,
+            padEnds: false,
+            itemCount: _skinTips.length,
+            onPageChanged: (i) => setState(() => _page = i),
+            itemBuilder: (context, i) {
+              final t = _skinTips[i];
+              return Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: t.colors, begin: Alignment.topLeft, end: Alignment.bottomRight),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.22), borderRadius: BorderRadius.circular(999)),
+                              child: Text('Tip ${i + 1}/${_skinTips.length}',
+                                  style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w700)),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(t.title, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
+                            const SizedBox(height: 3),
+                            Text(t.body,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 12, height: 1.35)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Container(
+                        width: 54,
+                        height: 54,
+                        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
+                        child: Icon(t.icon, color: Colors.white, size: 28),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(_skinTips.length, (i) {
+            final active = i == _page;
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: active ? 18 : 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: active ? AppColors.primary : AppColors.border,
+                borderRadius: BorderRadius.circular(3),
+              ),
+            );
+          }),
+        ),
+      ],
+    );
+  }
+}
+
+class _HowItWorks extends StatelessWidget {
+  const _HowItWorks();
+
+  static const _steps = [
+    (icon: Icons.edit_note_rounded, title: 'Describe', body: 'Answer a few questions & add photos'),
+    (icon: Icons.medical_services_rounded, title: 'Doctor reviews', body: 'A dermatologist studies your case'),
+    (icon: Icons.spa_rounded, title: 'Get solution', body: 'Treatment plan & prescription'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+      child: Column(
+        children: List.generate(_steps.length, (i) {
+          final s = _steps[i];
+          final last = i == _steps.length - 1;
+          return IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Column(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: const BoxDecoration(color: AppColors.primaryLight, shape: BoxShape.circle),
+                      child: Icon(s.icon, size: 19, color: AppColors.primary),
+                    ),
+                    if (!last)
+                      Expanded(
+                        child: Container(width: 2, margin: const EdgeInsets.symmetric(vertical: 4), color: AppColors.primaryLight),
+                      ),
+                  ],
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(top: 2, bottom: last ? 0 : 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${i + 1}. ${s.title}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+                        const SizedBox(height: 2),
+                        Text(s.body, style: const TextStyle(color: AppColors.textLight, fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
       ),
     );
   }

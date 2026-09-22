@@ -64,6 +64,7 @@ const createDoctorSchema = z.object({
   phone: z.string().min(6),
   specialization: z.string().optional(),
   experience: z.number().int().min(0).optional(),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
 const updateDoctorSchema = z.object({
@@ -74,6 +75,8 @@ const updateDoctorSchema = z.object({
   experience: z.number().int().min(0).optional(),
   isAvailable: z.boolean().optional(),
   avatar: z.string().optional(),
+  // Optional: set only when the Admin resets the doctor's login password.
+  password: z.string().min(6, 'Password must be at least 6 characters').optional(),
 });
 
 const updateUserSchema = z.object({
