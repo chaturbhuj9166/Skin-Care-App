@@ -14,6 +14,10 @@ const uploadRoutes = require('./routes/upload.routes');
 
 const app = express();
 
+// Railway (and most hosts) terminate HTTPS at a proxy; trust it so
+// req.protocol is "https" and uploaded-file URLs are built with https.
+app.set('trust proxy', 1);
+
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({ origin: env.CORS_ORIGIN }));
 app.use(express.json({ limit: '10mb' }));
