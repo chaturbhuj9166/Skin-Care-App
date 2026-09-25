@@ -30,7 +30,9 @@ class DoctorDashboardScreen extends ConsumerWidget {
     final repo = ref.watch(apiRepositoryProvider);
     final doctor = repo.currentDoctor;
     final cases = repo.doctorCases;
-    final pending = cases.where((c) => c.status == CaseStatus.pending || c.status == CaseStatus.assigned).length;
+    // Any case still waiting on a diagnosis - matches the spec's "Pending
+    // Solutions" card, so in-review cases count too, not just pending/assigned.
+    final pendingSolutions = cases.where((c) => c.status != CaseStatus.solved && c.status != CaseStatus.closed).length;
     // "Today" is keyed off the solution's issue date - the case row itself only
     // carries submittedAt, so a case solved on an earlier day must not count.
     final solvedToday = cases
@@ -39,10 +41,7 @@ class DoctorDashboardScreen extends ConsumerWidget {
             c.solution != null &&
             _isToday(c.solution!.issuedAt))
         .length;
-    final now = DateTime.now();
-    final upcoming = repo.appointments
-        .where((a) => a.scheduledAt.isAfter(now) || _isToday(a.scheduledAt))
-        .toList()
+    final todaysCalls = repo.appointments.where((a) => _isToday(a.scheduledAt)).toList()
       ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
 
     return ListView(
@@ -109,7 +108,7 @@ class DoctorDashboardScreen extends ConsumerWidget {
             children: [
               Expanded(child: _StatCard(label: 'Total Assigned', value: '${cases.length}', color: AppColors.primary, icon: Icons.folder_copy_rounded)),
               const SizedBox(width: 10),
-              Expanded(child: _StatCard(label: 'Pending', value: '$pending', color: AppColors.accent, icon: Icons.hourglass_top_rounded)),
+              Expanded(child: _StatCard(label: 'Pending Solutions', value: '$pendingSolutions', color: AppColors.accent, icon: Icons.hourglass_top_rounded)),
               const SizedBox(width: 10),
               Expanded(child: _StatCard(label: 'Solved Today', value: '$solvedToday', color: AppColors.secondary, icon: Icons.check_circle_rounded)),
             ],
@@ -123,17 +122,17 @@ class DoctorDashboardScreen extends ConsumerWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Upcoming Appointments', style: Theme.of(context).textTheme.titleLarge),
+                  Text("Today's Calls", style: Theme.of(context).textTheme.titleLarge),
                   TextButton(onPressed: () => context.push('/doctor-appointments'), child: const Text('See all')),
                 ],
               ),
               const SizedBox(height: 8),
-              if (upcoming.isEmpty)
+              if (todaysCalls.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text('Nothing scheduled yet', style: TextStyle(color: AppColors.textMuted, fontSize: 12.5)),
+                  child: Text('Nothing scheduled for today', style: TextStyle(color: AppColors.textMuted, fontSize: 12.5)),
                 ),
-              ...upcoming.take(3).map((a) => Container(
+              ...todaysCalls.take(5).map((a) => Container(
                     margin: const EdgeInsets.only(bottom: 10),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: AppShadows.card),
@@ -174,7 +173,7 @@ class DoctorDashboardScreen extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Text('No cases assigned yet', style: TextStyle(color: AppColors.textMuted, fontSize: 12.5)),
                 ),
-              ...cases.take(4).map((c) => Container(
+              ...cases.take(5).map((c) => Container(
                     margin: const EdgeInsets.only(bottom: 10),
                     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: AppShadows.card),
                     child: InkWell(

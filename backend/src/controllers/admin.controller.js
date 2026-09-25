@@ -679,7 +679,7 @@ const sendNotification = asyncHandler(async (req, res) => {
       await prisma.notification.create({
         data: { userId: targetId, userType: 'USER', title, body, type: 'ADMIN_BROADCAST', sentByName: req.admin.name },
       });
-      await fcm.sendPushNotification({ title, body, data: { type: 'ADMIN_BROADCAST' } });
+      await fcm.sendPushNotification({ ownerId: targetId, ownerType: 'USER', title, body, data: { type: 'ADMIN_BROADCAST' } });
       socket.emitToUser(targetId, 'notification', { title, body, type: 'ADMIN_BROADCAST' });
       break;
     }
@@ -689,7 +689,7 @@ const sendNotification = asyncHandler(async (req, res) => {
       await prisma.notification.create({
         data: { userId: targetId, userType: 'DOCTOR', title, body, type: 'ADMIN_BROADCAST', sentByName: req.admin.name },
       });
-      await fcm.sendPushNotification({ title, body, data: { type: 'ADMIN_BROADCAST' } });
+      await fcm.sendPushNotification({ ownerId: targetId, ownerType: 'DOCTOR', title, body, data: { type: 'ADMIN_BROADCAST' } });
       socket.emitToDoctor(targetId, 'notification', { title, body, type: 'ADMIN_BROADCAST' });
       break;
     }
