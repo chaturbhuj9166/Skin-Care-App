@@ -14,12 +14,32 @@ fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 // local disk - see upload.routes.js.
 const storage = multer.memoryStorage();
 
-const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.pdf']);
+// Every accepted extension maps to the mimetypes we'll accept for it, so a
+// ".mp4" carrying an "image/png" mimetype (or the reverse) is rejected - the
+// extension alone isn't trusted. Videos cover what phone cameras produce:
+// .mp4 (Android), .mov (iOS) and .webm.
+const ALLOWED_TYPES = {
+  '.jpg': ['image/jpeg'],
+  '.jpeg': ['image/jpeg'],
+  '.png': ['image/png'],
+  '.webp': ['image/webp'],
+  '.gif': ['image/gif'],
+  '.pdf': ['application/pdf'],
+  '.mp4': ['video/mp4'],
+  '.mov': ['video/quicktime', 'video/mp4'],
+  '.webm': ['video/webm'],
+};
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB - enough for a short phone clip
 
 function fileFilter(req, file, cb) {
   const ext = path.extname(file.originalname).toLowerCase();
-  if (!ALLOWED_EXTENSIONS.has(ext)) {
-    return cb(new Error('Unsupported file type'));
+  const allowedMimetypes = ALLOWED_TYPES[ext];
+  if (!allowedMimetypes) {
+    return cb(new Error(`Unsupported file type "${ext || file.originalname}". Allowed: ${Object.keys(ALLOWED_TYPES).join(', ')}`));
+  }
+  if (!allowedMimetypes.includes((file.mimetype || '').toLowerCase())) {
+    return cb(new Error(`File content type "${file.mimetype}" does not match the "${ext}" extension`));
   }
   cb(null, true);
 }
@@ -27,7 +47,7 @@ function fileFilter(req, file, cb) {
 const upload = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  limits: { fileSize: MAX_FILE_SIZE },
 });
 
-module.exports = { upload, UPLOAD_DIR };
+module.exports = { upload, UPLOAD_DIR, MAX_FILE_SIZE, ALLOWED_TYPES };

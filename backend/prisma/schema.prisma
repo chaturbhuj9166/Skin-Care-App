@@ -117,6 +117,10 @@ model Case {
   answers        Json
   status         CaseStatus @default(PENDING)
   photos         String[]
+  // Optional short clips the patient uploaded alongside the photos - the
+  // doctor's case detail plays them inline. Same shape as `photos`: public
+  // Storage URLs returned by POST /api/upload.
+  videos         String[]
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 

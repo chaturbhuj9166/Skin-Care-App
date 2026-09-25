@@ -55,6 +55,7 @@ class CaseModel {
   final String mainConcern;
   final List<QuestionAnswer> answers;
   final List<String> photoAssets; // real backend photo URLs once wired to storage
+  final List<String> videoAssets; // Firebase Storage URLs of the clips the patient attached
   SolutionModel? solution;
   final List<MessageModel> messages;
   DateTime? scheduledCallAt;
@@ -68,6 +69,7 @@ class CaseModel {
     required this.mainConcern,
     required this.answers,
     required this.photoAssets,
+    this.videoAssets = const [],
     this.doctor,
     this.patient,
     this.solution,
@@ -133,6 +135,7 @@ class CaseModel {
       mainConcern: mainConcern,
       answers: answers,
       photoAssets: ((json['photos'] as List?) ?? const []).cast<String>(),
+      videoAssets: ((json['videos'] as List?) ?? const []).cast<String>(),
       doctor: json['doctor'] != null ? DoctorModel.fromJson((json['doctor'] as Map).cast<String, dynamic>()) : null,
       patient: json['user'] != null ? UserModel.fromJson((json['user'] as Map).cast<String, dynamic>()) : null,
       solution: json['solution'] != null ? SolutionModel.fromJson((json['solution'] as Map).cast<String, dynamic>()) : null,

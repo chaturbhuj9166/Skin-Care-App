@@ -3,7 +3,7 @@ const path = require('node:path');
 const fs = require('node:fs/promises');
 const { randomUUID } = require('node:crypto');
 const { authenticate } = require('../middleware/auth');
-const { upload, UPLOAD_DIR } = require('../middleware/upload');
+const { upload, UPLOAD_DIR, MAX_FILE_SIZE } = require('../middleware/upload');
 const firebaseStorage = require('../services/firebaseStorage');
 const cloudinaryService = require('../services/cloudinary');
 const ApiError = require('../utils/ApiError');
@@ -15,13 +15,21 @@ router.use(authenticate);
 
 // POST /api/upload - multipart/form-data, field name "file".
 // Any authenticated role (user/doctor/admin) may upload - used for case
-// photos, chat attachments and profile avatars alike.
+// photos and videos, chat attachments and profile avatars alike.
 router.post(
   '/',
   (req, res, next) => {
     upload.single('file')(req, res, (err) => {
-      if (err) return next(ApiError.badRequest(err.message));
-      next();
+      if (!err) return next();
+      // Multer's own errors ("File too large", "Unexpected field") are terse,
+      // so spell them out - the app shows this message to the patient.
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return next(ApiError.badRequest(`File is too large. The maximum upload size is ${Math.round(MAX_FILE_SIZE / (1024 * 1024))}MB`));
+      }
+      if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+        return next(ApiError.badRequest('Unexpected file field. Send the file in a field named "file"'));
+      }
+      next(ApiError.badRequest(err.message));
     });
   },
   asyncHandler(async (req, res) => {

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/widgets/app_avatar.dart';
+import '../../core/widgets/case_video_player.dart';
 import '../../core/widgets/not_found_scaffold.dart';
 import '../../core/widgets/photo_viewer.dart';
 import '../../core/widgets/primary_button.dart';
@@ -197,6 +198,12 @@ class _CaseDetailScreenState extends ConsumerState<CaseDetailScreen> {
                 },
               ),
             ),
+          ],
+          if (c.videoAssets.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            Text('Your Videos', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            CaseVideoList(urls: c.videoAssets),
           ],
           if (c.solution != null) ...[
             const SizedBox(height: 18),

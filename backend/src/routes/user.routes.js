@@ -33,6 +33,7 @@ const createCaseSchema = z.object({
   questionFlowId: z.string().min(1),
   answers: z.any(),
   photos: z.array(z.string().url()).max(5).optional(),
+  videos: z.array(z.string().url()).max(2).optional(),
 });
 
 const messageSchema = z

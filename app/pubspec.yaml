@@ -26,6 +26,9 @@ dependencies:
   cached_network_image: ^3.4.1
   image_picker: ^1.1.2
 
+  # Video (patient clips attached to a case, played inline on both sides)
+  video_player: ^2.9.2
+
   # Local storage (onboarding flags; tokens go through flutter_secure_storage)
   shared_preferences: ^2.3.3
 

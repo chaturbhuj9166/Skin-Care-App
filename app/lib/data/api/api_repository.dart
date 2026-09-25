@@ -178,10 +178,12 @@ class ApiRepository extends ChangeNotifier {
 
   Future<CaseModel> submitCase({
     required Map<String, dynamic> answers,
+    List<String> videos = const [],
   }) async {
     final res = await _dio.post('/users/cases', data: {
       'questionFlowId': _activeFlowId,
       'answers': answers,
+      if (videos.isNotEmpty) 'videos': videos,
     });
     final newCase = CaseModel.fromJson(res.data['case'] as Map<String, dynamic>, questions: questionFlow);
     cases.insert(0, newCase);
@@ -281,7 +283,7 @@ class ApiRepository extends ChangeNotifier {
     await _dio.put('/doctors/profile/password', data: {'oldPassword': oldPassword, 'newPassword': newPassword});
   }
 
-  /// Uploads an image to the backend's local file store (see
+  /// Uploads an image or a video to the backend's file store (see
   /// backend/src/middleware/upload.js) and returns its public URL. Works
   /// uniformly on web and mobile since it reads bytes rather than a file path.
   Future<String> uploadFile(XFile file) async {

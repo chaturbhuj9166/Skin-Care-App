@@ -111,6 +111,19 @@ export default function CaseDetail() {
             </>
           )}
 
+          <h3 className="mb-3 mt-6 text-sm font-semibold text-slate-600">Videos</h3>
+          {caseRecord.videos?.length > 0 ? (
+            <div className="flex flex-wrap gap-3">
+              {caseRecord.videos.map((url) => (
+                <video key={url} src={url} controls preload="metadata" className="max-w-full rounded-btn bg-slate-900 sm:w-72">
+                  Your browser cannot play this video. <a href={url}>Download it instead.</a>
+                </video>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-400">The patient did not upload a video for this case.</p>
+          )}
+
           {caseRecord.solution && (
             <>
               <h3 className="mb-3 mt-6 text-sm font-semibold text-slate-600">Solution</h3>

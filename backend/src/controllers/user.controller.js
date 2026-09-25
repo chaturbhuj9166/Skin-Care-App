@@ -112,7 +112,7 @@ const listCases = asyncHandler(async (req, res) => {
 
 // POST /api/users/cases
 const createCase = asyncHandler(async (req, res) => {
-  const { questionFlowId, answers, photos } = req.body;
+  const { questionFlowId, answers, photos, videos } = req.body;
 
   // The doctor needs the patient's age and gender to review a case.
   if (!req.user.age || !req.user.gender) {
@@ -130,6 +130,8 @@ const createCase = asyncHandler(async (req, res) => {
       .flatMap(question => answers[question.id] || []),
   ])];
   if (uploadedPhotos.length > 5) throw ApiError.badRequest('A case can include at most five photos');
+  const uploadedVideos = [...new Set(videos || [])];
+  if (uploadedVideos.length > 2) throw ApiError.badRequest('A case can include at most two videos');
 
   const newCase = await prisma.case.create({
     data: {
@@ -137,6 +139,7 @@ const createCase = asyncHandler(async (req, res) => {
       questionFlowId,
       answers,
       photos: uploadedPhotos,
+      videos: uploadedVideos,
     },
   });
 

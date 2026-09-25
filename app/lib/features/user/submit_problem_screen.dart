@@ -34,6 +34,11 @@ IconData _iconFor(String key) {
   }
 }
 
+/// Server-side caps mirrored here so the UI stops the patient before an upload
+/// that the API would reject anyway.
+const _maxVideos = 2;
+const _maxVideoBytes = 50 * 1024 * 1024;
+
 const _optionColors = [
   AppColors.secondary,
   Color(0xFFF97316),
@@ -57,6 +62,9 @@ class _SubmitProblemScreenState extends ConsumerState<SubmitProblemScreen> {
   final Map<String, Set<String>> _multiSelections = {};
   final Map<String, int> _ratings = {};
   final Map<String, List<String>> _photoUrls = {};
+  // Videos hang off the case itself, not off a question, so they are kept as a
+  // flat list of (file name, uploaded URL) pairs.
+  final List<({String name, String url})> _videos = [];
   int _photoCount = 0;
   bool _summary = false;
   bool _submitting = false;
@@ -94,10 +102,10 @@ class _SubmitProblemScreenState extends ConsumerState<SubmitProblemScreen> {
   }
 
   bool _uploadingPhoto = false;
+  bool _uploadingVideo = false;
 
-  Future<void> _addPhoto(QuestionModel question) async {
-    if (_photoCount >= 5 || _uploadingPhoto) return;
-    final source = await showModalBottomSheet<ImageSource>(
+  Future<ImageSource?> _pickSource({required IconData cameraIcon, required String cameraLabel, required String galleryLabel}) {
+    return showModalBottomSheet<ImageSource>(
       context: context,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -106,18 +114,27 @@ class _SubmitProblemScreenState extends ConsumerState<SubmitProblemScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.camera_alt_rounded, color: AppColors.primary),
-              title: const Text('Take a photo'),
+              leading: Icon(cameraIcon, color: AppColors.primary),
+              title: Text(cameraLabel),
               onTap: () => Navigator.pop(sheetContext, ImageSource.camera),
             ),
             ListTile(
               leading: const Icon(Icons.photo_library_rounded, color: AppColors.primary),
-              title: const Text('Choose from gallery'),
+              title: Text(galleryLabel),
               onTap: () => Navigator.pop(sheetContext, ImageSource.gallery),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _addPhoto(QuestionModel question) async {
+    if (_photoCount >= 5 || _uploadingPhoto) return;
+    final source = await _pickSource(
+      cameraIcon: Icons.camera_alt_rounded,
+      cameraLabel: 'Take a photo',
+      galleryLabel: 'Choose from gallery',
     );
     if (source == null || !mounted) return;
 
@@ -139,6 +156,42 @@ class _SubmitProblemScreenState extends ConsumerState<SubmitProblemScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
     } finally {
       if (mounted) setState(() => _uploadingPhoto = false);
+    }
+  }
+
+  Future<void> _addVideo() async {
+    if (_videos.length >= _maxVideos || _uploadingVideo) return;
+    final source = await _pickSource(
+      cameraIcon: Icons.videocam_rounded,
+      cameraLabel: 'Record a video',
+      galleryLabel: 'Choose from gallery',
+    );
+    if (source == null || !mounted) return;
+
+    final picked = await ImagePicker().pickVideo(source: source, maxDuration: const Duration(seconds: 60));
+    if (picked == null || !mounted) return; // picker dismissed
+
+    // The server rejects anything over its own cap too; checking here saves the
+    // patient a long upload that can only end in a 400.
+    final bytes = await picked.length();
+    if (!mounted) return;
+    if (bytes > _maxVideoBytes) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('That video is ${(bytes / (1024 * 1024)).toStringAsFixed(0)} MB. Please keep it under 50 MB.')),
+      );
+      return;
+    }
+
+    setState(() => _uploadingVideo = true);
+    try {
+      final url = await ref.read(apiRepositoryProvider).uploadFile(picked);
+      if (!mounted) return;
+      setState(() => _videos.add((name: picked.name, url: url)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+    } finally {
+      if (mounted) setState(() => _uploadingVideo = false);
     }
   }
 
@@ -178,7 +231,10 @@ class _SubmitProblemScreenState extends ConsumerState<SubmitProblemScreen> {
       if (!empty) answers[q.id] = raw;
     }
     try {
-      await ref.read(apiRepositoryProvider).submitCase(answers: answers);
+      await ref.read(apiRepositoryProvider).submitCase(
+            answers: answers,
+            videos: [for (final v in _videos) v.url],
+          );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Case submitted! A doctor will review it shortly.')),
@@ -247,7 +303,15 @@ class _SubmitProblemScreenState extends ConsumerState<SubmitProblemScreen> {
           const SizedBox(height: 8),
           Expanded(
             child: _summary
-                ? _SummaryView(questions: questions, answers: _answers, photoCount: _photoCount)
+                ? _SummaryView(
+                    questions: questions,
+                    answers: _answers,
+                    photoCount: _photoCount,
+                    videos: _videos,
+                    uploadingVideo: _uploadingVideo,
+                    onAddVideo: _addVideo,
+                    onRemoveVideo: (i) => setState(() => _videos.removeAt(i)),
+                  )
                 : _QuestionView(
                     key: ValueKey(_index),
                     question: questions[_index],
@@ -622,7 +686,22 @@ class _SummaryView extends StatelessWidget {
   final List<QuestionModel> questions;
   final Map<String, String> answers;
   final int photoCount;
-  const _SummaryView({required this.questions, required this.answers, required this.photoCount});
+  // Video attach lives here rather than on the photo question, so it stays
+  // reachable even for a flow built with no photo_upload question.
+  final List<({String name, String url})> videos;
+  final bool uploadingVideo;
+  final VoidCallback onAddVideo;
+  final ValueChanged<int> onRemoveVideo;
+
+  const _SummaryView({
+    required this.questions,
+    required this.answers,
+    required this.photoCount,
+    required this.videos,
+    required this.uploadingVideo,
+    required this.onAddVideo,
+    required this.onRemoveVideo,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -657,6 +736,68 @@ class _SummaryView extends StatelessWidget {
             ],
           ),
         ),
+        const SizedBox(height: 22),
+        Text('Add a video (optional)', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 4),
+        const Text('A short clip helps the doctor see texture and movement a photo can miss.',
+            style: TextStyle(color: AppColors.textLight, fontSize: 12)),
+        const SizedBox(height: 10),
+        ...List.generate(videos.length, (i) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
+            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(color: AppColors.primaryLight, borderRadius: BorderRadius.circular(10)),
+                  child: const Icon(Icons.movie_rounded, color: AppColors.primary, size: 19),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(videos[i].name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5)),
+                ),
+                IconButton(
+                  tooltip: 'Remove',
+                  icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.textMuted),
+                  onPressed: () => onRemoveVideo(i),
+                ),
+              ],
+            ),
+          ).animate().fadeIn(duration: 200.ms);
+        }),
+        if (videos.length < _maxVideos)
+          InkWell(
+            onTap: uploadingVideo ? null : onAddVideo,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  if (uploadingVideo)
+                    const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4))
+                  else
+                    const Icon(Icons.videocam_rounded, color: AppColors.primary, size: 20),
+                  const SizedBox(width: 10),
+                  Text(uploadingVideo ? 'Uploading video…' : 'Record or choose a video',
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
+                ],
+              ),
+            ),
+          ),
+        const SizedBox(height: 10),
+        Text('Max $_maxVideos clips · up to 60 seconds · 50 MB each',
+            style: const TextStyle(color: AppColors.textLight, fontSize: 12)),
       ],
     );
   }
