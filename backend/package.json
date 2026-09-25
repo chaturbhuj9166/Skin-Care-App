@@ -19,6 +19,7 @@
     "seed": "node prisma/seed.js"
   },
   "dependencies": {
+    "@google-cloud/storage": "^8.2.0",
     "@prisma/client": "^5.20.0",
     "agora-token": "^2.0.5",
     "bcryptjs": "^2.4.3",
