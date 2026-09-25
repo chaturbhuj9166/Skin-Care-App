@@ -313,6 +313,17 @@ const scheduleCall = asyncHandler(async (req, res) => {
   socket.emitToCase(caseRecord.id, 'call_scheduled', payload);
   socket.emitToUser(caseRecord.userId, 'call_scheduled', payload);
   socket.emitToAllAdmins('call_scheduled', payload);
+  // 'call_scheduled' above only refreshes the appointments/cases lists - it's
+  // not the generic 'notification' event the app's notifications list and
+  // unread badge listen for, so without this the patient's Alerts tab never
+  // live-updates the way it does for a chat message (it just silently sits
+  // in the DB until they happen to reopen the app).
+  socket.emitToUser(caseRecord.userId, 'notification', {
+    caseId: caseRecord.id,
+    title: 'Video call scheduled',
+    body: `Dr. ${req.doctor.name} scheduled a video consultation with you.`,
+    type: 'CALL_SCHEDULED',
+  });
 
   res.status(201).json({ videoCall, agoraToken });
 });
