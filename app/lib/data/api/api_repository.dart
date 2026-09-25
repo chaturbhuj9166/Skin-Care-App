@@ -142,6 +142,11 @@ class ApiRepository extends ChangeNotifier {
     SocketService.instance.on('case_assigned', (_) => refreshCases());
     SocketService.instance.on('solution_added', (_) => refreshCases());
     SocketService.instance.on('case_status_changed', (_) => refreshCases());
+    // Keeps the online/offline dot on a case's assigned doctor live for the
+    // patient viewing it, instead of stuck at whatever it loaded at.
+    SocketService.instance.on('doctor_availability_changed', (_) {
+      if (!_isDoctorMode) refreshCases();
+    });
     SocketService.instance.on('call_scheduled', (_) {
       refreshAppointments();
       refreshCases();
@@ -200,8 +205,8 @@ class ApiRepository extends ChangeNotifier {
   Future<MessageModel> sendMessage(String caseId, {String? text, String? fileUrl}) async {
     final base = _isDoctorMode ? '/doctors' : '/users';
     final res = await _dio.post('$base/cases/$caseId/messages', data: {
-      if (text != null) 'text': text,
-      if (fileUrl != null) 'fileUrl': fileUrl,
+      'text': ?text,
+      'fileUrl': ?fileUrl,
     });
     return MessageModel.fromJson(res.data['message'] as Map<String, dynamic>);
   }
@@ -258,11 +263,11 @@ class ApiRepository extends ChangeNotifier {
 
   Future<void> updateProfile({String? name, String? email, String? gender, int? age, String? avatar}) async {
     final res = await _dio.put('/users/profile', data: {
-      if (name != null) 'name': name,
+      'name': ?name,
       if (email != null && email.isNotEmpty) 'email': email,
-      if (gender != null) 'gender': gender,
-      if (age != null) 'age': age,
-      if (avatar != null) 'avatar': avatar,
+      'gender': ?gender,
+      'age': ?age,
+      'avatar': ?avatar,
     });
     currentUser = UserModel.fromJson(res.data['user'] as Map<String, dynamic>);
     notifyListeners();
@@ -270,10 +275,10 @@ class ApiRepository extends ChangeNotifier {
 
   Future<void> updateDoctorProfile({String? name, String? specialization, int? experience, String? avatar}) async {
     final res = await _dio.put('/doctors/profile', data: {
-      if (name != null) 'name': name,
-      if (specialization != null) 'specialization': specialization,
-      if (experience != null) 'experience': experience,
-      if (avatar != null) 'avatar': avatar,
+      'name': ?name,
+      'specialization': ?specialization,
+      'experience': ?experience,
+      'avatar': ?avatar,
     });
     currentDoctor = DoctorModel.fromJson(res.data['doctor'] as Map<String, dynamic>);
     notifyListeners();

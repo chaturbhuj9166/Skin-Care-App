@@ -38,7 +38,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void _onNewMessage(dynamic data) {
     final message = MessageModel.fromJson((data as Map).cast<String, dynamic>());
     if (_messages.any((m) => m.id == message.id)) return;
-    setState(() => _messages.add(message));
+    // The message itself is proof typing stopped - don't wait for a separate
+    // stop_typing event, which only fires after the sender's own 2s debounce.
+    setState(() {
+      _messages.add(message);
+      _peerTyping = false;
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
   }
 

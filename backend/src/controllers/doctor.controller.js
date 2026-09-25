@@ -73,6 +73,23 @@ const updateAvailability = asyncHandler(async (req, res) => {
 
   const { password, ...safeDoctor } = doctor;
   socket.emitToAllAdmins('doctor_availability_changed', { doctorId: doctor.id, isAvailable: doctor.isAvailable });
+
+  // Also tell every patient with an open case on this doctor - their case
+  // detail/chat screen shows an online/offline dot that would otherwise stay
+  // stuck at whatever it loaded at.
+  const affectedCases = await prisma.case.findMany({
+    where: { doctorId: doctor.id, status: { notIn: ['SOLVED', 'CLOSED'] } },
+    select: { id: true, userId: true },
+  });
+  const notifiedUserIds = new Set();
+  for (const affectedCase of affectedCases) {
+    socket.emitToCase(affectedCase.id, 'doctor_availability_changed', { doctorId: doctor.id, isAvailable: doctor.isAvailable });
+    if (!notifiedUserIds.has(affectedCase.userId)) {
+      notifiedUserIds.add(affectedCase.userId);
+      socket.emitToUser(affectedCase.userId, 'doctor_availability_changed', { doctorId: doctor.id, isAvailable: doctor.isAvailable });
+    }
+  }
+
   res.json({ doctor: safeDoctor });
 });
 
