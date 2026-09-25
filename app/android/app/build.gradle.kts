@@ -1,11 +1,12 @@
 plugins {
     id("com.android.application")
+    id("com.google.gms.google-services")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
 android {
-    namespace = "com.zepfly.skincare_app"
+    namespace = "com.skincare.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -18,7 +19,7 @@ android {
         // One app for both User and Doctor logins - see lib/main.dart and
         // lib/app_router.dart. The phone+OTP login screen alone decides which
         // role's screens to show, based on the server's response.
-        applicationId = "com.zepfly.skincare"
+        applicationId = "com.skincare.app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

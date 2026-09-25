@@ -20,9 +20,15 @@ const env = {
   // "false" once real SMS delivery (Firebase/MSG91/...) is integrated.
   OTP_SHOW_IN_RESPONSE: process.env.OTP_SHOW_IN_RESPONSE !== 'false',
 
+  // Path to a downloaded service-account JSON file. Takes precedence over the
+  // three vars below - see services/firebase.js.
+  FIREBASE_SERVICE_ACCOUNT_PATH: process.env.FIREBASE_SERVICE_ACCOUNT_PATH || '',
   FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || '',
   FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY || '',
   FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL || '',
+  // Cloud Storage bucket for photo/file uploads. Defaults to
+  // "<project-id>.firebasestorage.app" when left empty.
+  FIREBASE_STORAGE_BUCKET: process.env.FIREBASE_STORAGE_BUCKET || '',
 
   AGORA_APP_ID: process.env.AGORA_APP_ID || '',
   AGORA_APP_CERTIFICATE: process.env.AGORA_APP_CERTIFICATE || '',

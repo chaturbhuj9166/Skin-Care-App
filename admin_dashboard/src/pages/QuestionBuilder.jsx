@@ -128,25 +128,33 @@ function QuestionEditor({ question, index, total, onChange, onRemove, onMove, dr
 function FlowPreview({ title, questions }) {
   return (
     <Card>
-      <h3 className="mb-1 text-sm font-semibold text-slate-600">Preview</h3>
-      <h4 className="mb-4 text-lg font-heading font-semibold text-slate-800">{title || 'Untitled flow'}</h4>
-      <div className="flex flex-col gap-4">
-        {questions.map((q) => (
-          <div key={q.id}>
-            <div className="text-sm font-medium text-slate-700">{q.text || 'Untitled question'} {q.required && <span className="text-red-500">*</span>}</div>
-            {q.type === 'text' && <div className="mt-1 h-9 rounded-btn border border-dashed border-slate-200" />}
-            {(q.type === 'single_choice' || q.type === 'multiple_choice') && (
-              <div className="mt-1 flex flex-wrap gap-2">
-                {(q.options || []).map((opt) => (
-                  <span key={opt} className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600">{opt}</span>
-                ))}
+      <h3 className="mb-3 text-sm font-semibold text-slate-600">Preview</h3>
+      {/* Patients answer this on a phone, so the preview is framed like one. */}
+      <div className="mx-auto w-[320px] rounded-[2.25rem] border-[10px] border-slate-800 bg-white shadow-xl">
+        <div className="flex justify-center pt-2">
+          <span className="h-1.5 w-16 rounded-full bg-slate-800" />
+        </div>
+        <div className="max-h-[520px] overflow-y-auto px-4 pb-6 pt-4">
+          <h4 className="mb-4 text-lg font-heading font-semibold text-slate-800">{title || 'Untitled flow'}</h4>
+          <div className="flex flex-col gap-4">
+            {questions.map((q) => (
+              <div key={q.id}>
+                <div className="text-sm font-medium text-slate-700">{q.text || 'Untitled question'} {q.required && <span className="text-red-500">*</span>}</div>
+                {q.type === 'text' && <div className="mt-1 h-9 rounded-btn border border-dashed border-slate-200" />}
+                {(q.type === 'single_choice' || q.type === 'multiple_choice') && (
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {(q.options || []).map((opt) => (
+                      <span key={opt} className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600">{opt}</span>
+                    ))}
+                  </div>
+                )}
+                {q.type === 'yes_no' && <div className="mt-1 flex gap-2 text-xs text-slate-500"><span className="rounded-full border px-3 py-1">Yes</span><span className="rounded-full border px-3 py-1">No</span></div>}
+                {q.type === 'rating' && <div className="mt-1 text-slate-400">★ ★ ★ ★ ★</div>}
+                {q.type === 'photo_upload' && <div className="mt-1 h-16 w-16 rounded-btn border border-dashed border-slate-200" />}
               </div>
-            )}
-            {q.type === 'yes_no' && <div className="mt-1 flex gap-2 text-xs text-slate-500"><span className="rounded-full border px-3 py-1">Yes</span><span className="rounded-full border px-3 py-1">No</span></div>}
-            {q.type === 'rating' && <div className="mt-1 text-slate-400">★ ★ ★ ★ ★</div>}
-            {q.type === 'photo_upload' && <div className="mt-1 h-16 w-16 rounded-btn border border-dashed border-slate-200" />}
+            ))}
           </div>
-        ))}
+        </div>
       </div>
     </Card>
   );
@@ -277,12 +285,28 @@ export default function QuestionBuilder() {
   const [selectedId, setSelectedId] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [togglingId, setTogglingId] = useState(null);
 
   if (loading) return <Loading />;
   if (error) return <ErrorMessage message={error} />;
 
   const flows = data.data;
   const selected = selectedId === 'new' ? { title: '', questions: [emptyQuestion()] } : flows.find((f) => f.id === selectedId);
+
+  // Activating a flow deactivates every other one server-side, so the whole
+  // list has to be refetched rather than patched in place.
+  async function toggleActive(flow) {
+    setTogglingId(flow.id);
+    try {
+      await api.put(`/admin/question-flows/${flow.id}`, { isActive: !flow.isActive });
+      await refetch();
+      toastSuccess(flow.isActive ? `"${flow.title}" moved to draft.` : `"${flow.title}" is now the active flow.`);
+    } catch (err) {
+      toastError(apiErrorMessage(err));
+    } finally {
+      setTogglingId(null);
+    }
+  }
 
   async function handleDelete() {
     setDeleteBusy(true);
@@ -314,11 +338,15 @@ export default function QuestionBuilder() {
                 {flow.title}
               </button>
               <div className="flex items-center gap-3">
-                {flow.isActive ? (
-                  <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">Active</span>
-                ) : (
-                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500">Draft</span>
-                )}
+                <button
+                  type="button"
+                  disabled={togglingId === flow.id}
+                  onClick={() => toggleActive(flow)}
+                  title={flow.isActive ? 'Move to draft' : 'Make this the active flow'}
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition disabled:opacity-50 ${flow.isActive ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                >
+                  {flow.isActive ? 'Active' : 'Draft'}
+                </button>
                 <button
                   type="button"
                   onClick={() => setDeleting(flow)}

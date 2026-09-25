@@ -20,6 +20,23 @@ IconData _iconFor(NotificationType t) {
   }
 }
 
+/// Sends each notification to the screen that actually shows what it is about;
+/// without a caseId the case-scoped routes can't be built, so fall back to the
+/// nearest list screen instead of doing nothing.
+void _openTarget(BuildContext context, NotificationModel n) {
+  final caseId = n.caseId;
+  switch (n.type) {
+    case NotificationType.message:
+      context.push(caseId != null ? '/chat/$caseId' : '/cases');
+    case NotificationType.appointment:
+      context.push('/appointments');
+    case NotificationType.caseUpdate:
+      context.push(caseId != null ? '/cases/$caseId' : '/cases');
+    case NotificationType.system:
+      if (caseId != null) context.push('/cases/$caseId');
+  }
+}
+
 class NotificationsScreen extends ConsumerWidget {
   const NotificationsScreen({super.key});
 
@@ -46,7 +63,7 @@ class NotificationsScreen extends ConsumerWidget {
                 return InkWell(
                   onTap: () {
                     repo.markNotificationRead(n.id);
-                    if (n.caseId != null) context.push('/cases/${n.caseId}');
+                    _openTarget(context, n);
                   },
                   borderRadius: BorderRadius.circular(14),
                   child: Container(

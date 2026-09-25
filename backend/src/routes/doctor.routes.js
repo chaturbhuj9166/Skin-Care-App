@@ -28,6 +28,11 @@ const updateAvailabilitySchema = z.object({
   isAvailable: z.boolean(),
 });
 
+// FCM device token registration (push notifications).
+const deviceTokenSchema = z.object({
+  token: z.string().min(10),
+});
+
 const listCasesQuerySchema = z.object({
   status: z.enum(CASE_STATUSES).optional(),
   page: z.string().optional(),
@@ -55,6 +60,8 @@ router.get('/profile', doctorController.getProfile);
 router.put('/profile', validate({ body: updateProfileSchema }), doctorController.updateProfile);
 router.put('/profile/password', validate({ body: changePasswordSchema }), doctorController.changePassword);
 router.put('/availability', validate({ body: updateAvailabilitySchema }), doctorController.updateAvailability);
+router.post('/device-token', validate({ body: deviceTokenSchema }), doctorController.registerDeviceToken);
+router.delete('/device-token', validate({ body: deviceTokenSchema }), doctorController.deleteDeviceToken);
 
 router.get('/cases', validate({ query: listCasesQuerySchema }), doctorController.listCases);
 router.get('/cases/:id', doctorController.getCaseById);

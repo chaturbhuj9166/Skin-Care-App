@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { buildCaseFilter } = require('../src/utils/caseFilter');
 const { toCsv } = require('../src/utils/csv');
+const { fillMonthlySeries } = require('../src/utils/analytics');
 
 test('buildCaseFilter combines status, doctor, date range and user search', () => {
   const where = buildCaseFilter({
@@ -33,4 +34,17 @@ test('toCsv quotes cells and escapes embedded quotes', () => {
   assert.equal(lines[0], '"Name","Note"');
   assert.equal(lines[1], '"Simran ""S"" Kaur","ok"');
   assert.equal(lines[2], '"",""');
+});
+
+test('fillMonthlySeries pads months with no cases so the chart keeps its window', () => {
+  const series = fillMonthlySeries([{ month: '2026-02', count: 3 }], new Date(2025, 11, 1), 6);
+
+  assert.deepEqual(series, [
+    { month: '2025-12', count: 0 },
+    { month: '2026-01', count: 0 },
+    { month: '2026-02', count: 3 },
+    { month: '2026-03', count: 0 },
+    { month: '2026-04', count: 0 },
+    { month: '2026-05', count: 0 },
+  ]);
 });

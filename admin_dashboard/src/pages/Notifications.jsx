@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
 import { api, apiErrorMessage } from '../lib/api';
 import { useApiQuery } from '../hooks/useApiQuery';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { toastSuccess, toastError } from '../store/toastStore';
 import Card from '../components/Card';
+import Table from '../components/Table';
 import Button from '../components/Button';
 import Field, { TextInput, TextArea, Select } from '../components/Field';
 import { Loading, ErrorMessage } from '../components/Feedback';
@@ -14,16 +16,24 @@ const TARGETS = [
   { value: 'SPECIFIC_DOCTOR', label: 'Specific doctor' },
 ];
 
+// One broadcast fans out into one Notification row per recipient, all sharing
+// the same title/body/timestamp — so the history is grouped back together and
+// the recipient count tells a blast apart from a single-recipient send.
 function groupNotifications(rows) {
   const groups = new Map();
   for (const n of rows) {
     const key = `${n.title}|${n.body}|${n.createdAt}`;
     if (!groups.has(key)) {
-      groups.set(key, { title: n.title, body: n.body, createdAt: n.createdAt, userType: n.userType, count: 0 });
+      groups.set(key, { key, title: n.title, body: n.body, createdAt: n.createdAt, userType: n.userType, sentByName: n.sentByName, count: 0 });
     }
     groups.get(key).count += 1;
   }
   return Array.from(groups.values());
+}
+
+function targetLabel(group) {
+  if (group.userType === 'DOCTOR') return group.count > 1 ? 'All doctors' : 'Specific doctor';
+  return group.count > 1 ? 'All users' : 'Specific user';
 }
 
 export default function Notifications() {
@@ -39,9 +49,10 @@ export default function Notifications() {
 
   const isSpecific = target === 'SPECIFIC_USER' || target === 'SPECIFIC_DOCTOR';
   const searchEndpoint = target === 'SPECIFIC_USER' ? '/admin/users' : '/admin/doctors';
+  const debouncedTargetQuery = useDebouncedValue(targetQuery);
   const { data: candidates } = useApiQuery(
-    () => (isSpecific ? api.get(searchEndpoint, { params: { search: targetQuery, limit: 10 } }) : Promise.resolve({ data: null })),
-    [isSpecific, searchEndpoint, targetQuery],
+    () => (isSpecific ? api.get(searchEndpoint, { params: { search: debouncedTargetQuery, limit: 10 } }) : Promise.resolve({ data: null })),
+    [isSpecific, searchEndpoint, debouncedTargetQuery],
   );
 
   const grouped = useMemo(() => groupNotifications(data?.data || []), [data]);
@@ -133,18 +144,25 @@ export default function Notifications() {
         <h3 className="mb-3 text-sm font-semibold text-slate-600">Delivery history</h3>
         {loading && <Loading />}
         {listError && <ErrorMessage message={listError} />}
-        <ul className="divide-y divide-slate-100 text-sm">
-          {grouped.map((n) => (
-            <li key={`${n.title}|${n.body}|${n.createdAt}`} className="py-3">
-              <div className="font-medium text-slate-800">{n.title}</div>
-              <div className="text-slate-500">{n.body}</div>
-              <div className="text-xs text-slate-400">
-                {n.userType} · {n.count > 1 ? `${n.count} recipients` : '1 recipient'} · {new Date(n.createdAt).toLocaleString()}
-              </div>
-            </li>
-          ))}
-          {data && !grouped.length && <li className="py-6 text-center text-slate-400">No notifications sent yet.</li>}
-        </ul>
+        {data && (
+          <Table
+            rowKey={(row) => row.key}
+            emptyMessage="No notifications sent yet."
+            columns={[
+              { key: 'title', header: 'Title', render: (r) => (
+                <div>
+                  <div className="font-medium text-slate-800">{r.title}</div>
+                  <div className="text-xs text-slate-500">{r.body}</div>
+                </div>
+              ) },
+              { key: 'target', header: 'Target', render: (r) => targetLabel(r) },
+              { key: 'recipients', header: 'Recipients', render: (r) => r.count },
+              { key: 'sentBy', header: 'Sent by', render: (r) => r.sentByName || '—' },
+              { key: 'sentAt', header: 'Sent at', render: (r) => new Date(r.createdAt).toLocaleString() },
+            ]}
+            rows={grouped}
+          />
+        )}
       </Card>
     </div>
   );

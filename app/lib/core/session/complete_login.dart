@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/api/api_client.dart';
 import '../../data/api/api_repository.dart';
 import '../../data/api/auth_api.dart';
+import '../../data/api/push_service.dart';
 import 'session_controller.dart';
 
 /// Shared tail of both login flows (patient OTP, doctor email/password).
@@ -24,6 +25,12 @@ Future<String> completeLogin(WidgetRef ref, LoginResult result) async {
     rethrow;
   }
   await ref.read(appSessionProvider.notifier).login(result.token, result.isDoctor ? AppRole.doctor : AppRole.user);
+  // Not awaited: asking for notification permission and fetching the FCM token
+  // can take seconds, and nothing on the home screen waits for it.
+  PushService.instance.start(
+    isDoctor: result.isDoctor,
+    onForegroundMessage: result.isDoctor ? repo.refreshCases : repo.refreshNotifications,
+  );
   if (result.isDoctor) return '/dashboard';
   return result.isNewUser ? '/complete-profile' : '/home';
 }

@@ -124,11 +124,11 @@ model Case {
   doctor       Doctor?      @relation(fields: [doctorId], references: [id], onDelete: SetNull)
   questionFlow QuestionFlow @relation(fields: [questionFlowId], references: [id])
 
-  messages   Message[]
-  solution   Solution?
-  videoCalls VideoCall[]
+  messages      Message[]
+  solution      Solution?
+  videoCalls    VideoCall[]
   statusHistory CaseStatusHistory[]
-  rating     Rating?
+  rating        Rating?
 
   @@index([userId])
   @@index([doctorId])
@@ -177,15 +177,17 @@ model Message {
 }
 
 model Notification {
-  id        String               @id @default(uuid())
-  userId    String
-  userType  NotificationUserType
-  title     String
-  body      String
-  isRead    Boolean              @default(false)
-  type      String
-  caseId    String? // lets the client deep-link the notification to the related case
-  createdAt DateTime             @default(now())
+  id         String               @id @default(uuid())
+  userId     String
+  userType   NotificationUserType
+  title      String
+  body       String
+  isRead     Boolean              @default(false)
+  type       String
+  // Set only on ADMIN_BROADCAST rows, so the admin delivery history can show who sent it.
+  sentByName String?
+  caseId     String? // lets the client deep-link the notification to the related case
+  createdAt  DateTime             @default(now())
 
   @@index([userId, userType])
 }
@@ -246,4 +248,18 @@ model VideoCall {
   case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
 
   @@index([caseId])
+}
+
+// FCM device tokens. One row per installed app instance; owners are users,
+// doctors or admins (same USER/DOCTOR/ADMIN split as Notification.userType).
+// Registered/removed by the owner - see services/fcm.js for how they are used.
+model DeviceToken {
+  id        String               @id @default(uuid())
+  token     String               @unique
+  ownerId   String
+  ownerType NotificationUserType
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  @@index([ownerId, ownerType])
 }

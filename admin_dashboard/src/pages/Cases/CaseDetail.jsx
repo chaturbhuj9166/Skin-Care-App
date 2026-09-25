@@ -6,6 +6,7 @@ import { useSocketEvent } from '../../lib/socket';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
 import StatusBadge from '../../components/StatusBadge';
+import Modal from '../../components/Modal';
 import { Select } from '../../components/Field';
 import { Loading, ErrorMessage } from '../../components/Feedback';
 
@@ -25,6 +26,7 @@ export default function CaseDetail() {
   const [nextStatus, setNextStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState(null);
+  const [lightboxUrl, setLightboxUrl] = useState(null);
 
   useSocketEvent(['case_assigned', 'new_message', 'solution_added'], refetch);
 
@@ -101,7 +103,9 @@ export default function CaseDetail() {
               <h3 className="mb-3 mt-6 text-sm font-semibold text-slate-600">Photos</h3>
               <div className="flex flex-wrap gap-2">
                 {caseRecord.photos.map((url) => (
-                  <img key={url} src={url} alt="Case attachment" className="h-24 w-24 rounded-btn object-cover" />
+                  <button key={url} type="button" onClick={() => setLightboxUrl(url)} title="Click to enlarge">
+                    <img src={url} alt="Case attachment" className="h-24 w-24 rounded-btn object-cover transition hover:opacity-80" />
+                  </button>
                 ))}
               </div>
             </>
@@ -173,6 +177,10 @@ export default function CaseDetail() {
           </Card>
         </div>
       </div>
+
+      <Modal open={!!lightboxUrl} onClose={() => setLightboxUrl(null)} title="Case photo">
+        <img src={lightboxUrl} alt="Case attachment" className="max-h-[70vh] w-full rounded-btn object-contain" />
+      </Modal>
     </div>
   );
 }

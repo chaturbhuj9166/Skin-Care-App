@@ -32,6 +32,12 @@ const verifyOtpSchema = z.object({
   otp: z.string().regex(/^\d{6}$/, 'OTP must be a 6-digit code'),
 });
 
+// Firebase phone auth: the app runs the SMS OTP itself and sends us the
+// resulting Firebase ID token (a JWT, always far longer than 20 chars).
+const firebaseLoginSchema = z.object({
+  idToken: z.string().min(20),
+});
+
 const doctorLoginSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(1),
@@ -43,6 +49,8 @@ router.post('/send-otp', validate({ body: sendOtpSchema }), authController.sendO
 router.post('/verify-otp', validate({ body: verifyOtpSchema }), authController.verifyOtp);
 // Same OTP check as /verify-otp - the spec lists both paths for user login.
 router.post('/user/login', validate({ body: verifyOtpSchema }), authController.verifyOtp);
+// Production patient login - the app posts a Firebase phone-auth ID token.
+router.post('/firebase', validate({ body: firebaseLoginSchema }), authController.firebaseLogin);
 router.post('/doctor/login', validate({ body: doctorLoginSchema }), authController.doctorLogin);
 
 module.exports = router;

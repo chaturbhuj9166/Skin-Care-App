@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Design tokens from the Zepfly Studio SkinCare App spec.
+/// Design tokens from the SkinCare App spec.
 class AppColors {
   AppColors._();
 

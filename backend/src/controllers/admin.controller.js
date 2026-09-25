@@ -9,6 +9,7 @@ const fcm = require('../services/fcm');
 const { recordCaseStatus } = require('../services/caseHistory');
 const { toCsv } = require('../utils/csv');
 const { buildCaseFilter } = require('../utils/caseFilter');
+const { fillMonthlySeries } = require('../utils/analytics');
 
 const SALT_ROUNDS = 10;
 
@@ -116,7 +117,7 @@ const getAnalytics = asyncHandler(async (req, res) => {
 
   res.json({
     totals: { totalUsers, totalDoctors, totalCases, totalTickets, pendingCases },
-    casesPerMonth,
+    casesPerMonth: fillMonthlySeries(casesPerMonth, sixMonthsAgo, 6),
     statusDistribution,
     weeklyNewUsers,
   });
@@ -238,6 +239,8 @@ const assignCase = asyncHandler(async (req, res) => {
   });
 
   await fcm.sendPushNotification({
+    ownerId: doctorId,
+    ownerType: 'DOCTOR',
     title: 'New case assigned',
     body: 'A new case has been assigned to you.',
     data: { caseId: caseRecord.id, type: 'CASE_ASSIGNED' },
@@ -256,6 +259,7 @@ const assignCase = asyncHandler(async (req, res) => {
   socket.emitToCase(caseRecord.id, 'case_assigned', payload);
   socket.emitToUser(caseRecord.userId, 'case_assigned', payload);
   socket.emitToUser(caseRecord.userId, 'notification', patientNotice);
+  socket.emitToAllAdmins('case_assigned', payload);
 
   res.json({ case: updated });
 });
@@ -292,6 +296,7 @@ const updateCaseStatus = asyncHandler(async (req, res) => {
   const payload = { caseId: updated.id, status };
   socket.emitToUser(updated.userId, 'case_status_changed', payload);
   if (updated.doctorId) socket.emitToDoctor(updated.doctorId, 'case_status_changed', payload);
+  socket.emitToAllAdmins('case_status_changed', payload);
 
   res.json({ case: updated });
 });
@@ -481,7 +486,13 @@ const listUsers = asyncHandler(async (req, res) => {
     : undefined;
 
   const [data, total] = await Promise.all([
-    prisma.user.findMany({ where, skip, take, orderBy: { createdAt: 'desc' } }),
+    prisma.user.findMany({
+      where,
+      skip,
+      take,
+      orderBy: { createdAt: 'desc' },
+      include: { _count: { select: { cases: true } } },
+    }),
     prisma.user.count({ where }),
   ]);
 
@@ -517,19 +528,28 @@ const updateUser = asyncHandler(async (req, res) => {
 // Tickets
 // ---------------------------------------------------------------------------
 
-// GET /api/admin/tickets?status&priority
+// GET /api/admin/tickets?status&priority&limit
 const listTickets = asyncHandler(async (req, res) => {
-  const { status, priority } = req.query;
+  const { status, priority, limit } = req.query;
   const where = { ...(status && { status }), ...(priority && { priority }) };
 
   const tickets = await prisma.ticket.findMany({
     where,
     orderBy: { createdAt: 'desc' },
+    ...(limit && { take: Number(limit) }),
     include: { user: { select: { id: true, name: true, phone: true, avatar: true } } },
   });
 
   res.json({ data: tickets });
 });
+
+// A ticket only ever moves forward: OPEN -> IN_PROGRESS -> CLOSED. Without
+// this, a closed ticket could be silently reopened and lose its resolution.
+const TICKET_STATUS_TRANSITIONS = {
+  OPEN: ['IN_PROGRESS', 'CLOSED'],
+  IN_PROGRESS: ['CLOSED'],
+  CLOSED: [],
+};
 
 // PATCH /api/admin/tickets/:id
 const updateTicket = asyncHandler(async (req, res) => {
@@ -537,6 +557,10 @@ const updateTicket = asyncHandler(async (req, res) => {
 
   const existing = await prisma.ticket.findUnique({ where: { id: req.params.id } });
   if (!existing) throw ApiError.notFound('Ticket not found');
+  // Re-sending the current status is a no-op (reply-only updates do this).
+  if (status !== undefined && status !== existing.status && !TICKET_STATUS_TRANSITIONS[existing.status].includes(status)) {
+    throw ApiError.badRequest(`Cannot change ticket status from ${existing.status} to ${status}`);
+  }
 
   const ticket = await prisma.ticket.update({
     where: { id: existing.id },
@@ -631,7 +655,7 @@ const sendNotification = asyncHandler(async (req, res) => {
       const users = await prisma.user.findMany({ select: { id: true } });
       if (users.length) {
         await prisma.notification.createMany({
-          data: users.map((u) => ({ userId: u.id, userType: 'USER', title, body, type: 'ADMIN_BROADCAST' })),
+          data: users.map((u) => ({ userId: u.id, userType: 'USER', title, body, type: 'ADMIN_BROADCAST', sentByName: req.admin.name })),
         });
       }
       await fcm.sendPushToTopic({ topic: 'all-users', title, body });
@@ -642,7 +666,7 @@ const sendNotification = asyncHandler(async (req, res) => {
       const doctors = await prisma.doctor.findMany({ select: { id: true } });
       if (doctors.length) {
         await prisma.notification.createMany({
-          data: doctors.map((d) => ({ userId: d.id, userType: 'DOCTOR', title, body, type: 'ADMIN_BROADCAST' })),
+          data: doctors.map((d) => ({ userId: d.id, userType: 'DOCTOR', title, body, type: 'ADMIN_BROADCAST', sentByName: req.admin.name })),
         });
       }
       await fcm.sendPushToTopic({ topic: 'all-doctors', title, body });
@@ -653,7 +677,7 @@ const sendNotification = asyncHandler(async (req, res) => {
       const user = await prisma.user.findUnique({ where: { id: targetId } });
       if (!user) throw ApiError.badRequest('Invalid targetId: user not found');
       await prisma.notification.create({
-        data: { userId: targetId, userType: 'USER', title, body, type: 'ADMIN_BROADCAST' },
+        data: { userId: targetId, userType: 'USER', title, body, type: 'ADMIN_BROADCAST', sentByName: req.admin.name },
       });
       await fcm.sendPushNotification({ title, body, data: { type: 'ADMIN_BROADCAST' } });
       socket.emitToUser(targetId, 'notification', { title, body, type: 'ADMIN_BROADCAST' });
@@ -663,7 +687,7 @@ const sendNotification = asyncHandler(async (req, res) => {
       const doctor = await prisma.doctor.findUnique({ where: { id: targetId } });
       if (!doctor) throw ApiError.badRequest('Invalid targetId: doctor not found');
       await prisma.notification.create({
-        data: { userId: targetId, userType: 'DOCTOR', title, body, type: 'ADMIN_BROADCAST' },
+        data: { userId: targetId, userType: 'DOCTOR', title, body, type: 'ADMIN_BROADCAST', sentByName: req.admin.name },
       });
       await fcm.sendPushNotification({ title, body, data: { type: 'ADMIN_BROADCAST' } });
       socket.emitToDoctor(targetId, 'notification', { title, body, type: 'ADMIN_BROADCAST' });
@@ -681,9 +705,11 @@ const listNotifications = asyncHandler(async (req, res) => {
   const { page: pageQuery, limit: limitQuery } = req.query;
   const { page, limit, skip, take } = getPagination({ page: pageQuery, limit: limitQuery });
 
+  const where = { type: 'ADMIN_BROADCAST' };
+
   const [data, total] = await Promise.all([
-    prisma.notification.findMany({ skip, take, orderBy: { createdAt: 'desc' } }),
-    prisma.notification.count(),
+    prisma.notification.findMany({ where, skip, take, orderBy: { createdAt: 'desc' } }),
+    prisma.notification.count({ where }),
   ]);
 
   res.json(buildPaginatedResponse(data, total, page, limit));

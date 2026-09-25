@@ -7,15 +7,18 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/session/complete_login.dart';
 import '../../core/widgets/primary_button.dart';
-import '../../data/api/api_client.dart';
 import '../../data/api/auth_api.dart';
+import '../../data/api/phone_auth_service.dart';
 
-/// Verifies the server-generated OTP from POST /auth/send-otp.
+/// Verifies the code from either OTP path - see [OtpRequest].
 ///
-/// No SMS provider is wired up yet, so the backend returns the code as
-/// `devOtp` and this screen shows it in a card the user can tap to auto-fill.
-/// Once real SMS delivery exists the backend stops sending `devOtp` and the
-/// card simply disappears - nothing else here changes.
+/// Real path: the typed code goes to Firebase, and the Firebase ID token it
+/// returns is traded for our own JWT at POST /auth/firebase. Android may also
+/// finish the sign-in on its own, with no code typed at all.
+///
+/// Dev path: the code goes to POST /auth/verify-otp, and while the backend has
+/// no SMS provider it hands the code back as `devOtp`, which this screen shows
+/// in a tap-to-fill card. That card never appears on the real path.
 class OtpScreen extends ConsumerStatefulWidget {
   final OtpRequest request;
   const OtpScreen({super.key, required this.request});
@@ -35,6 +38,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   int _secondsLeft = _resendSeconds;
   int _errorTick = 0;
   Timer? _timer;
+  StreamSubscription<String>? _autoSub;
+  StreamSubscription<String>? _failureSub;
 
   @override
   void initState() {
@@ -42,6 +47,24 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     _startCountdown();
     _focusNode.addListener(() => setState(() {}));
     WidgetsBinding.instance.addPostFrameCallback((_) => _focusNode.requestFocus());
+    if (_request.isFirebase) _listenForAutoVerification();
+  }
+
+  /// Android's SMS auto-retrieval can complete at any time once the code is
+  /// requested - including while this screen was being pushed, which is why the
+  /// already-latched token is checked as well as the stream.
+  void _listenForAutoVerification() {
+    final service = PhoneAuthService.instance;
+    _autoSub = service.autoVerified.listen(_signInWithIdToken);
+    _failureSub = service.failures.listen((message) {
+      if (!mounted) return;
+      setState(() => _errorTick++);
+      _toast(message);
+    });
+    final latched = service.takeAutoIdToken() ?? _request.autoIdToken;
+    if (latched != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _signInWithIdToken(latched));
+    }
   }
 
   void _startCountdown() {
@@ -59,6 +82,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _autoSub?.cancel();
+    _failureSub?.cancel();
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -70,18 +95,29 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       _toast('Enter the 6-digit code');
       return;
     }
+    final verificationId = _request.verificationId;
+    await _signIn(() async {
+      if (verificationId == null) return AuthApi.verifyOtp(_request.phone, otp);
+      return AuthApi.firebaseLogin(await PhoneAuthService.instance.verifyCode(verificationId, otp));
+    });
+  }
+
+  Future<void> _signInWithIdToken(String idToken) => _signIn(() => AuthApi.firebaseLogin(idToken));
+
+  /// One login attempt, whichever path produced it: shared loading flag,
+  /// routing on success, clear-and-shake on failure.
+  Future<void> _signIn(Future<LoginResult> Function() attempt) async {
     if (_loading) return;
     setState(() => _loading = true);
     try {
-      final result = await AuthApi.verifyOtp(_request.phone, otp);
-      final next = await completeLogin(ref, result);
+      final next = await completeLogin(ref, await attempt());
       if (!mounted) return;
       context.go(next);
     } catch (e) {
       if (!mounted) return;
       _controller.clear();
       setState(() => _errorTick++);
-      _toast(apiErrorMessage(e));
+      _toast(authErrorMessage(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -91,15 +127,24 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     if (_secondsLeft > 0 || _resending) return;
     setState(() => _resending = true);
     try {
-      final request = await AuthApi.sendOtp(_request.phone);
+      // The resend token makes Firebase treat this as the same verification
+      // attempt, so the user is not charged a fresh quota slot.
+      final request = _request.isFirebase
+          ? await PhoneAuthService.instance.sendCode(_request.phone, resendToken: _request.resendToken)
+          : await AuthApi.sendOtp(_request.phone);
       if (!mounted) return;
+      final autoIdToken = PhoneAuthService.instance.takeAutoIdToken() ?? request.autoIdToken;
       setState(() => _request = request);
       _controller.clear();
-      _focusNode.requestFocus();
       _startCountdown();
+      if (autoIdToken != null) {
+        await _signInWithIdToken(autoIdToken);
+        return;
+      }
+      _focusNode.requestFocus();
       _toast('A new code has been sent');
     } catch (e) {
-      if (mounted) _toast(apiErrorMessage(e));
+      if (mounted) _toast(authErrorMessage(e));
     } finally {
       if (mounted) setState(() => _resending = false);
     }

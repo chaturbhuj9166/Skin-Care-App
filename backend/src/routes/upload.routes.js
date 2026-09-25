@@ -4,6 +4,7 @@ const fs = require('node:fs/promises');
 const { randomUUID } = require('node:crypto');
 const { authenticate } = require('../middleware/auth');
 const { upload, UPLOAD_DIR } = require('../middleware/upload');
+const firebaseStorage = require('../services/firebaseStorage');
 const cloudinaryService = require('../services/cloudinary');
 const ApiError = require('../utils/ApiError');
 const asyncHandler = require('../utils/asyncHandler');
@@ -26,12 +27,22 @@ router.post(
   asyncHandler(async (req, res) => {
     if (!req.file) throw ApiError.badRequest('No file provided');
 
+    // Driver order: Firebase Storage -> Cloudinary -> local disk.
+    if (firebaseStorage.isConfigured) {
+      const result = await firebaseStorage.uploadBuffer(req.file.buffer, {
+        folder: 'skincare',
+        originalname: req.file.originalname,
+        contentType: req.file.mimetype,
+      });
+      return res.status(201).json({ url: result.url });
+    }
+
     if (cloudinaryService.isConfigured) {
       const result = await cloudinaryService.uploadBuffer(req.file.buffer, { folder: 'skincare-app' });
       return res.status(201).json({ url: result.secure_url });
     }
 
-    // Local disk fallback (no Cloudinary credentials configured).
+    // Local disk fallback (neither Firebase nor Cloudinary configured).
     const ext = path.extname(req.file.originalname).toLowerCase();
     const filename = `${randomUUID()}${ext}`;
     await fs.writeFile(path.join(UPLOAD_DIR, filename), req.file.buffer);

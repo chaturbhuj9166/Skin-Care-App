@@ -8,6 +8,16 @@ import Button from '../components/Button';
 import Field from '../components/Field';
 import { ErrorMessage } from '../components/Feedback';
 
+const EMAIL_PATTERN = /^[^s@]+@[^s@]+.[^s@]+$/;
+
+function validate({ email, password }) {
+  const errors = {};
+  if (!email.trim()) errors.email = 'Please enter your email address.';
+  else if (!EMAIL_PATTERN.test(email.trim())) errors.email = 'Please enter a valid email address.';
+  if (!password) errors.password = 'Please enter your password.';
+  return errors;
+}
+
 export default function Login() {
   const token = useAuthStore((s) => s.token);
   const login = useAuthStore((s) => s.login);
@@ -17,6 +27,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
   if (token) return <Navigate to="/" replace />;
@@ -24,6 +35,11 @@ export default function Login() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError(null);
+
+    const errors = validate({ email, password });
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) return;
+
     setLoading(true);
     try {
       const { data } = await api.post('/auth/admin/login', { email, password });
@@ -79,30 +95,31 @@ export default function Login() {
               <h2 className="mt-2 text-3xl font-heading font-bold text-slate-900">Log in to your account</h2>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} noValidate className="space-y-5">
               <Field label="Email address">
-                <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 focus-within:border-brand-teal focus-within:bg-white">
+                <div className={`flex items-center gap-3 rounded-xl border bg-slate-50 px-3 py-2.5 focus-within:border-brand-teal focus-within:bg-white ${fieldErrors.email ? 'border-red-300' : 'border-slate-200'}`}>
                   <Mail className="h-4 w-4 text-slate-400" />
                   <input
                     type="email"
-                    required
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => { setEmail(e.target.value); setFieldErrors((f) => ({ ...f, email: undefined })); }}
                     placeholder="admin@skincareapp.com"
+                    aria-invalid={!!fieldErrors.email}
                     className="w-full border-0 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
                   />
                 </div>
+                {fieldErrors.email && <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p>}
               </Field>
 
               <Field label="Password">
-                <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 focus-within:border-brand-teal focus-within:bg-white">
+                <div className={`flex items-center gap-3 rounded-xl border bg-slate-50 px-3 py-2.5 focus-within:border-brand-teal focus-within:bg-white ${fieldErrors.password ? 'border-red-300' : 'border-slate-200'}`}>
                   <LockKeyhole className="h-4 w-4 text-slate-400" />
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    required
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => { setPassword(e.target.value); setFieldErrors((f) => ({ ...f, password: undefined })); }}
                     placeholder="••••••••"
+                    aria-invalid={!!fieldErrors.password}
                     className="w-full border-0 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
                   />
                   <button
@@ -115,6 +132,7 @@ export default function Login() {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                {fieldErrors.password && <p className="mt-1 text-xs text-red-600">{fieldErrors.password}</p>}
               </Field>
 
               {error && <ErrorMessage message={error} />}

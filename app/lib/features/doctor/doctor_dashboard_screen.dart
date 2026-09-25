@@ -8,6 +8,12 @@ import '../../core/widgets/app_avatar.dart';
 import '../../core/widgets/status_chip.dart';
 import '../../data/models/case_model.dart';
 import '../../data/api/api_repository.dart';
+import 'opened_cases_store.dart';
+
+bool _isToday(DateTime d) {
+  final now = DateTime.now();
+  return d.year == now.year && d.month == now.month && d.day == now.day;
+}
 
 String _greeting() {
   final h = DateTime.now().hour;
@@ -25,7 +31,19 @@ class DoctorDashboardScreen extends ConsumerWidget {
     final doctor = repo.currentDoctor;
     final cases = repo.doctorCases;
     final pending = cases.where((c) => c.status == CaseStatus.pending || c.status == CaseStatus.assigned).length;
-    final solvedToday = cases.where((c) => c.status == CaseStatus.solved || c.status == CaseStatus.closed).length;
+    // "Today" is keyed off the solution's issue date - the case row itself only
+    // carries submittedAt, so a case solved on an earlier day must not count.
+    final solvedToday = cases
+        .where((c) =>
+            (c.status == CaseStatus.solved || c.status == CaseStatus.closed) &&
+            c.solution != null &&
+            _isToday(c.solution!.issuedAt))
+        .length;
+    final now = DateTime.now();
+    final upcoming = repo.appointments
+        .where((a) => a.scheduledAt.isAfter(now) || _isToday(a.scheduledAt))
+        .toList()
+      ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
 
     return ListView(
       padding: EdgeInsets.zero,
@@ -93,7 +111,7 @@ class DoctorDashboardScreen extends ConsumerWidget {
               const SizedBox(width: 10),
               Expanded(child: _StatCard(label: 'Pending', value: '$pending', color: AppColors.accent, icon: Icons.hourglass_top_rounded)),
               const SizedBox(width: 10),
-              Expanded(child: _StatCard(label: 'Solved', value: '$solvedToday', color: AppColors.secondary, icon: Icons.check_circle_rounded)),
+              Expanded(child: _StatCard(label: 'Solved Today', value: '$solvedToday', color: AppColors.secondary, icon: Icons.check_circle_rounded)),
             ],
           ),
         ),
@@ -110,12 +128,12 @@ class DoctorDashboardScreen extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              if (repo.appointments.isEmpty)
+              if (upcoming.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Text('Nothing scheduled yet', style: TextStyle(color: AppColors.textMuted, fontSize: 12.5)),
                 ),
-              ...repo.appointments.map((a) => Container(
+              ...upcoming.take(3).map((a) => Container(
                     margin: const EdgeInsets.only(bottom: 10),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: AppShadows.card),
@@ -129,7 +147,7 @@ class DoctorDashboardScreen extends ConsumerWidget {
                             children: [
                               Text(a.patientOrDoctorName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
                               const SizedBox(height: 2),
-                              Text('${DateFormat('hh:mm a').format(a.scheduledAt)} • ${a.isVideo ? 'Video Call' : 'Chat'}',
+                              Text('${DateFormat(_isToday(a.scheduledAt) ? 'hh:mm a' : 'MMM d, hh:mm a').format(a.scheduledAt)} • ${a.isVideo ? 'Video Call' : 'Chat'}',
                                   style: const TextStyle(color: AppColors.textLight, fontSize: 11.5)),
                             ],
                           ),
@@ -161,7 +179,10 @@ class DoctorDashboardScreen extends ConsumerWidget {
                     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: AppShadows.card),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(14),
-                      onTap: () => context.push('/doctor-cases/${c.id}'),
+                      onTap: () {
+                        ref.read(openedCasesProvider).markOpened(c.id);
+                        context.push('/doctor-cases/${c.id}');
+                      },
                       child: Padding(
                         padding: const EdgeInsets.all(12),
                         child: Row(

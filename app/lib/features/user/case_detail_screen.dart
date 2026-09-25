@@ -269,19 +269,30 @@ class _CaseDetailScreenState extends ConsumerState<CaseDetailScreen> {
                   onPressed: c.doctor == null ? null : () => context.push('/chat/${c.id}'),
                 ),
               ),
-              if (c.scheduledCallAt != null) ...[
-                const SizedBox(width: 12),
-                Expanded(
-                  child: PrimaryButton(
-                    label: 'Video Call',
-                    outlined: true,
-                    icon: Icons.videocam_rounded,
-                    onPressed: () => context.push('/video-call/${c.id}'),
-                  ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: PrimaryButton(
+                  label: 'Video Call',
+                  outlined: true,
+                  icon: Icons.videocam_rounded,
+                  // Shown even with nothing booked, so the option is visible
+                  // rather than silently missing from the screen.
+                  onPressed: c.scheduledCallAt == null ? null : () => context.push('/video-call/${c.id}'),
                 ),
-              ],
+              ),
             ],
           ),
+          if (c.scheduledCallAt == null) ...[
+            const SizedBox(height: 8),
+            const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.info_outline_rounded, size: 13, color: AppColors.textMuted),
+                SizedBox(width: 6),
+                Text('No call scheduled yet', style: TextStyle(color: AppColors.textMuted, fontSize: 11.5)),
+              ],
+            ),
+          ],
         ],
       ),
     );

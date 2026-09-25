@@ -9,6 +9,7 @@ import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/status_chip.dart';
 import '../../data/models/case_model.dart';
 import '../../data/api/api_repository.dart';
+import 'opened_cases_store.dart';
 
 class DoctorCasesScreen extends ConsumerStatefulWidget {
   const DoctorCasesScreen({super.key});
@@ -25,13 +26,20 @@ class _DoctorCasesScreenState extends ConsumerState<DoctorCasesScreen> {
   @override
   Widget build(BuildContext context) {
     final repo = ref.watch(apiRepositoryProvider);
+    final opened = ref.watch(openedCasesProvider);
     var cases = repo.doctorCases;
 
     if (_tab == 1) cases = cases.where((c) => c.status == CaseStatus.pending || c.status == CaseStatus.assigned).toList();
     if (_tab == 2) cases = cases.where((c) => c.status == CaseStatus.inReview).toList();
     if (_tab == 3) cases = cases.where((c) => c.status == CaseStatus.solved || c.status == CaseStatus.closed).toList();
     if (_query.isNotEmpty) {
-      cases = cases.where((c) => c.mainConcern.toLowerCase().contains(_query.toLowerCase())).toList();
+      final q = _query.toLowerCase();
+      cases = cases
+          .where((c) =>
+              (c.patient?.name.toLowerCase().contains(q) ?? false) ||
+              c.caseNumber.toLowerCase().contains(q) ||
+              c.mainConcern.toLowerCase().contains(q))
+          .toList();
     }
 
     return Scaffold(
@@ -50,7 +58,8 @@ class _DoctorCasesScreenState extends ConsumerState<DoctorCasesScreen> {
               decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
               child: TextField(
                 onChanged: (v) => setState(() => _query = v),
-                decoration: const InputDecoration(hintText: 'Search by concern...', border: InputBorder.none, prefixIcon: Icon(Icons.search_rounded)),
+                decoration: const InputDecoration(
+                    hintText: 'Search by patient name...', border: InputBorder.none, prefixIcon: Icon(Icons.search_rounded)),
               ),
             ),
           ),
@@ -77,7 +86,23 @@ class _DoctorCasesScreenState extends ConsumerState<DoctorCasesScreen> {
           const SizedBox(height: 6),
           Expanded(
             child: cases.isEmpty
-                ? const EmptyState(icon: Icons.folder_off_rounded, title: 'No cases here', subtitle: 'New assigned cases will show up in this tab.')
+                // The empty state still needs to scroll, otherwise there is no
+                // drag for RefreshIndicator to pick up.
+                ? RefreshIndicator(
+                    onRefresh: repo.refreshCases,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) => SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                          child: const EmptyState(
+                              icon: Icons.folder_off_rounded,
+                              title: 'No cases here',
+                              subtitle: 'New assigned cases will show up in this tab.'),
+                        ),
+                      ),
+                    ),
+                  )
                 : RefreshIndicator(
                     onRefresh: repo.refreshCases,
                     child: ListView.separated(
@@ -86,9 +111,12 @@ class _DoctorCasesScreenState extends ConsumerState<DoctorCasesScreen> {
                       separatorBuilder: (context, i) => const SizedBox(height: 12),
                       itemBuilder: (context, i) {
                         final c = cases[i];
-                        final isNew = DateTime.now().difference(c.submittedAt).inHours < 6;
+                        final isNew = opened.loaded && !opened.isOpened(c.id);
                         return InkWell(
-                          onTap: () => context.push('/doctor-cases/${c.id}'),
+                          onTap: () {
+                            opened.markOpened(c.id);
+                            context.push('/doctor-cases/${c.id}');
+                          },
                           borderRadius: BorderRadius.circular(14),
                           child: Container(
                             padding: const EdgeInsets.all(14),

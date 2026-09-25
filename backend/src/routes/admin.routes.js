@@ -86,6 +86,7 @@ const updateUserSchema = z.object({
 const listTicketsQuerySchema = z.object({
   status: z.enum(TICKET_STATUSES).optional(),
   priority: z.enum(TICKET_PRIORITIES).optional(),
+  limit: z.string().optional(),
 });
 
 const updateTicketSchema = z.object({

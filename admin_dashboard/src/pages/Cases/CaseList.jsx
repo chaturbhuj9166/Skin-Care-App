@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { UserPlus } from 'lucide-react';
-import { api } from '../../lib/api';
+import { api, apiErrorMessage } from '../../lib/api';
 import { useApiQuery } from '../../hooks/useApiQuery';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useSocketEvent } from '../../lib/socket';
+import { toastError } from '../../store/toastStore';
 import Card from '../../components/Card';
 import Table from '../../components/Table';
 import Button from '../../components/Button';
@@ -23,22 +25,42 @@ export default function CaseList() {
   const [to, setTo] = useState('');
   const [page, setPage] = useState(1);
   const [assigningCaseId, setAssigningCaseId] = useState(null);
+  const [exporting, setExporting] = useState(false);
 
-  const params = { page, limit: 20, ...(search && { search }), ...(status && { status }), ...(from && { from }), ...(to && { to }) };
-  const { data, loading, error, refetch } = useApiQuery(() => api.get('/admin/cases', { params }), [search, status, from, to, page]);
+  const debouncedSearch = useDebouncedValue(search);
+  const filters = { ...(debouncedSearch && { search: debouncedSearch }), ...(status && { status }), ...(from && { from }), ...(to && { to }) };
+  const { data, loading, error, refetch } = useApiQuery(
+    () => api.get('/admin/cases', { params: { page, limit: 20, ...filters } }),
+    [debouncedSearch, status, from, to, page],
+  );
 
-  useSocketEvent(['case_assigned', 'notification'], refetch);
+  useSocketEvent(['case_assigned', 'case_status_changed', 'notification'], refetch);
 
-  function exportCsv() {
-    const query = new URLSearchParams({ ...(search && { search }), ...(status && { status }), ...(from && { from }), ...(to && { to }) });
-    window.open(`${import.meta.env.VITE_API_URL}/api/admin/cases/export?${query}`, '_blank');
+  async function exportCsv() {
+    setExporting(true);
+    try {
+      // The export endpoint is token-protected, so it has to go through the
+      // axios instance (window.open sends no Authorization header) and the
+      // returned blob is saved via a temporary object URL.
+      const response = await api.get('/admin/cases/export', { params: filters, responseType: 'blob' });
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'cases.csv';
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toastError(apiErrorMessage(err));
+    } finally {
+      setExporting(false);
+    }
   }
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-slate-800">Cases</h1>
-        <Button variant="secondary" onClick={exportCsv}>Export CSV</Button>
+        <Button variant="secondary" onClick={exportCsv} disabled={exporting}>{exporting ? 'Exporting…' : 'Export CSV'}</Button>
       </div>
 
       <Card>

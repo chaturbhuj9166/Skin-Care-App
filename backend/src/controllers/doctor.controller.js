@@ -157,6 +157,8 @@ const addSolution = asyncHandler(async (req, res) => {
   });
 
   await fcm.sendPushNotification({
+    ownerId: caseRecord.userId,
+    ownerType: 'USER',
     title: 'Your case has a solution',
     body: `Dr. ${req.doctor.name} has reviewed your case and added a solution.`,
     data: { caseId: caseRecord.id, type: 'SOLUTION_ADDED' },
@@ -267,6 +269,8 @@ const scheduleCall = asyncHandler(async (req, res) => {
   });
 
   await fcm.sendPushNotification({
+    ownerId: caseRecord.userId,
+    ownerType: 'USER',
     title: 'Video call scheduled',
     body: `Dr. ${req.doctor.name} scheduled a video consultation with you.`,
     data: { caseId: caseRecord.id, roomId, type: 'CALL_SCHEDULED' },
@@ -313,7 +317,39 @@ const getAnalytics = asyncHandler(async (req, res) => {
   });
 });
 
+
+// POST /api/doctors/device-token
+// Registers this install's FCM token so services/fcm.js can push to it.
+// Idempotent: re-registering a token that already exists just re-points it
+// at the current owner (a device handed over to another account).
+const registerDeviceToken = asyncHandler(async (req, res) => {
+  const { token } = req.body;
+
+  const deviceToken = await prisma.deviceToken.upsert({
+    where: { token },
+    update: { ownerId: req.doctor.id, ownerType: 'DOCTOR' },
+    create: { token, ownerId: req.doctor.id, ownerType: 'DOCTOR' },
+  });
+
+  res.status(201).json({ deviceToken });
+});
+
+// DELETE /api/doctors/device-token
+// Called on logout / when push is turned off. Only ever removes a token that
+// belongs to the caller, and succeeds even when it was already gone.
+const deleteDeviceToken = asyncHandler(async (req, res) => {
+  const { token } = req.body;
+
+  const { count } = await prisma.deviceToken.deleteMany({
+    where: { token, ownerId: req.doctor.id, ownerType: 'DOCTOR' },
+  });
+
+  res.json({ success: true, removed: count });
+});
+
 module.exports = {
+  registerDeviceToken,
+  deleteDeviceToken,
   getProfile,
   updateProfile,
   changePassword,

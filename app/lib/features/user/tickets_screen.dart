@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/primary_button.dart';
 import '../../data/models/ticket_model.dart';
 import '../../data/api/api_repository.dart';
+import 'ticket_detail_screen.dart';
 
 class TicketScreen extends ConsumerStatefulWidget {
   const TicketScreen({super.key});
@@ -15,28 +17,6 @@ class TicketScreen extends ConsumerStatefulWidget {
 }
 
 class _TicketScreenState extends ConsumerState<TicketScreen> {
-  Color _statusColor(TicketStatus s) {
-    switch (s) {
-      case TicketStatus.open:
-        return AppColors.statusAssigned;
-      case TicketStatus.inProgress:
-        return AppColors.accent;
-      case TicketStatus.closed:
-        return AppColors.secondary;
-    }
-  }
-
-  Color _priorityColor(TicketPriority p) {
-    switch (p) {
-      case TicketPriority.low:
-        return AppColors.secondary;
-      case TicketPriority.medium:
-        return AppColors.accent;
-      case TicketPriority.high:
-        return AppColors.error;
-    }
-  }
-
   void _openNewTicketSheet() {
     final subjectController = TextEditingController();
     final descController = TextEditingController();
@@ -110,7 +90,10 @@ class _TicketScreenState extends ConsumerState<TicketScreen> {
               separatorBuilder: (context, i) => const SizedBox(height: 10),
               itemBuilder: (context, i) {
                 final t = tickets[i];
-                return Container(
+                return InkWell(
+                  onTap: () => context.push('/tickets/${t.id}'),
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
                   child: Column(
@@ -121,33 +104,47 @@ class _TicketScreenState extends ConsumerState<TicketScreen> {
                           Expanded(child: Text(t.subject, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14))),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(color: _priorityColor(t.priority).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
-                            child: Text(t.priority.label, style: TextStyle(color: _priorityColor(t.priority), fontSize: 10.5, fontWeight: FontWeight.w700)),
+                            decoration: BoxDecoration(color: ticketPriorityColor(t.priority).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
+                            child: Text(t.priority.label, style: TextStyle(color: ticketPriorityColor(t.priority), fontSize: 10.5, fontWeight: FontWeight.w700)),
                           ),
                         ],
                       ),
                       const SizedBox(height: 6),
                       Text(t.description, style: const TextStyle(color: AppColors.textLight, fontSize: 12.5)),
                       const SizedBox(height: 10),
-                      if (t.adminReply != null)
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(10)),
-                          child: Text('Admin: ${t.adminReply}', style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
-                        ),
+                      Row(
+                        children: [
+                          Icon(t.adminReply == null ? Icons.hourglass_empty_rounded : Icons.support_agent_rounded,
+                              size: 14, color: t.adminReply == null ? AppColors.textMuted : AppColors.primary),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              t.adminReply == null ? 'Awaiting reply' : 'Support replied · tap to read',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                                color: t.adminReply == null ? AppColors.textMuted : AppColors.primary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: 8),
                       Row(
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(color: _statusColor(t.status).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
-                            child: Text(t.status.label, style: TextStyle(color: _statusColor(t.status), fontSize: 10.5, fontWeight: FontWeight.w700)),
+                            decoration: BoxDecoration(color: ticketStatusColor(t.status).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
+                            child: Text(t.status.label, style: TextStyle(color: ticketStatusColor(t.status), fontSize: 10.5, fontWeight: FontWeight.w700)),
                           ),
                           const Spacer(),
                           Text(DateFormat('dd MMM yyyy').format(t.createdAt), style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
                         ],
                       ),
                     ],
+                  ),
                   ),
                 );
               },

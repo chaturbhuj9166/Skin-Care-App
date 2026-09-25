@@ -4,10 +4,12 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/firebase/firebase_bootstrap.dart';
 import '../../core/session/complete_login.dart';
 import '../../core/widgets/primary_button.dart';
 import '../../data/api/api_client.dart';
 import '../../data/api/auth_api.dart';
+import '../../data/api/phone_auth_service.dart';
 
 /// One login screen for the one app: patients sign in with their phone
 /// number + an OTP the server generates, doctors with the email + password
@@ -73,12 +75,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
     FocusScope.of(context).unfocus();
     setState(() => _loading = true);
+    final phone = '${_country.code}$digits';
     try {
-      final request = await AuthApi.sendOtp('${_country.code}$digits');
+      // Real SMS through Firebase on a phone; the server-generated OTP on
+      // web/desktop, where Firebase has no config to start from.
+      final request = firebaseReady ? await PhoneAuthService.instance.sendCode(phone) : await AuthApi.sendOtp(phone);
       if (!mounted) return;
+      // Android can verify the number by itself before the OTP screen opens -
+      // then there is no code to type and we log straight in.
+      final autoIdToken = PhoneAuthService.instance.takeAutoIdToken() ?? request.autoIdToken;
+      if (autoIdToken != null) {
+        final next = await completeLogin(ref, await AuthApi.firebaseLogin(autoIdToken));
+        if (!mounted) return;
+        context.go(next);
+        return;
+      }
       context.push('/verify-otp', extra: request);
     } catch (e) {
-      if (mounted) _toast(apiErrorMessage(e));
+      if (mounted) _toast(authErrorMessage(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Backend API, chat sockets and image uploads. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Android 13+ asks the user before we can show FCM notifications. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="@string/app_name"
         android:name="${applicationName}"

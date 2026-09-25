@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/api/api_client.dart';
+import '../../data/api/phone_auth_service.dart';
+import '../../data/api/push_service.dart';
 import '../../data/api/socket_service.dart';
 
 enum AppRole { user, doctor }
@@ -87,6 +89,10 @@ class SessionController extends StateNotifier<SessionState> {
   }
 
   Future<void> logout() async {
+    // Before the token is cleared: the backend needs the JWT to find the row
+    // whose device token it should delete.
+    await PushService.instance.stop();
+    await PhoneAuthService.instance.signOut();
     await _storage.delete(key: _tokenKey);
     await _storage.delete(key: _roleKey);
     ApiClient.instance.setToken(null);

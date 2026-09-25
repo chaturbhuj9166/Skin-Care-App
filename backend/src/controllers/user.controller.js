@@ -302,6 +302,22 @@ const createTicket = asyncHandler(async (req, res) => {
     data: { userId: req.user.id, subject, description, priority },
   });
 
+  // Notify every admin (in-app notification row + live socket push), the same
+  // way a newly submitted case does.
+  const admins = await prisma.admin.findMany({ select: { id: true } });
+  const notice = {
+    title: 'New support ticket',
+    body: `${req.user.name} raised a support ticket: ${ticket.subject}`,
+    type: 'NEW_TICKET',
+  };
+  if (admins.length) {
+    await prisma.notification.createMany({
+      data: admins.map((admin) => ({ ...notice, userId: admin.id, userType: 'ADMIN' })),
+    });
+  }
+
+  socket.emitToAllAdmins('notification', { ...notice, ticketId: ticket.id });
+
   res.status(201).json({ ticket });
 });
 
@@ -338,7 +354,39 @@ const listAppointments = asyncHandler(async (req, res) => {
   res.json({ data: appointments });
 });
 
+
+// POST /api/users/device-token
+// Registers this install's FCM token so services/fcm.js can push to it.
+// Idempotent: re-registering a token that already exists just re-points it
+// at the current owner (a device handed over to another account).
+const registerDeviceToken = asyncHandler(async (req, res) => {
+  const { token } = req.body;
+
+  const deviceToken = await prisma.deviceToken.upsert({
+    where: { token },
+    update: { ownerId: req.user.id, ownerType: 'USER' },
+    create: { token, ownerId: req.user.id, ownerType: 'USER' },
+  });
+
+  res.status(201).json({ deviceToken });
+});
+
+// DELETE /api/users/device-token
+// Called on logout / when push is turned off. Only ever removes a token that
+// belongs to the caller, and succeeds even when it was already gone.
+const deleteDeviceToken = asyncHandler(async (req, res) => {
+  const { token } = req.body;
+
+  const { count } = await prisma.deviceToken.deleteMany({
+    where: { token, ownerId: req.user.id, ownerType: 'USER' },
+  });
+
+  res.json({ success: true, removed: count });
+});
+
 module.exports = {
+  registerDeviceToken,
+  deleteDeviceToken,
   getActiveQuestionFlow,
   getProfile,
   listDoctors,

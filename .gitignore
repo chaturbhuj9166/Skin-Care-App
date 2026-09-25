@@ -7,3 +7,13 @@ tmp/
 # OS
 .DS_Store
 Thumbs.db
+
+# Firebase client config / service account keys - never commit
+google-services.json
+GoogleService-Info.plist
+firebase-admin*.json
+*serviceAccount*.json
+backend/env
+backend/serviceAccountKey.json
+backend/railway-firebase-env.txt
+*firebase-adminsdk*.json

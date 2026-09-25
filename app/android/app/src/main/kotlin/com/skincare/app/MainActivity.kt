@@ -1,4 +1,4 @@
-package com.zepfly.skincare_app
+package com.skincare.app
 
 import io.flutter.embedding.android.FlutterActivity
 

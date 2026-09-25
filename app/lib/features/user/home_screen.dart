@@ -102,7 +102,7 @@ class HomeScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 20),
           InkWell(
-            onTap: () => context.push('/cases'),
+            onTap: () => context.push('/cases?focus=search'),
             borderRadius: BorderRadius.circular(14),
             child: Container(
               padding: const EdgeInsets.all(16),

@@ -17,15 +17,15 @@ working locally without any of these.
      (e.g. name it "skincare-consultation")
 
    Needed from Firebase for the USER app:
-   - Register Android app with package name: com.zepfly.skincare.user
+   - Register Android app with package name: com.skincare.app
    - Download google-services.json -> place in android/app/
-   - (Later, iOS) Register iOS app with bundle ID: com.zepfly.skincare.user
+   - (Later, iOS) Register iOS app with bundle ID: com.skincare.app
    - Download GoogleService-Info.plist -> place in ios/Runner/
 
    Needed from Firebase for the DOCTOR app:
-   - Register Android app with package name: com.zepfly.skincare.doctor
+   - Register Android app with package name: com.skincare.app
    - Download its own google-services.json
-   - (Later, iOS) Register iOS app with bundle ID: com.zepfly.skincare.doctor
+   - (Later, iOS) Register iOS app with bundle ID: com.skincare.app
    - Download its own GoogleService-Info.plist
 
    Needed from Firebase for the BACKEND (server):

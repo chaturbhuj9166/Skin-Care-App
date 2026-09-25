@@ -23,6 +23,7 @@ import 'features/user/otp_screen.dart';
 import 'features/user/prescription_screen.dart';
 import 'features/user/splash_screen.dart';
 import 'features/user/submit_problem_screen.dart';
+import 'features/user/ticket_detail_screen.dart';
 import 'features/user/tickets_screen.dart';
 import 'features/user/user_shell.dart';
 
@@ -66,7 +67,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/complete-profile', builder: (context, state) => const CompleteProfileScreen()),
       GoRoute(path: '/home', builder: (context, state) => const UserShell()),
       GoRoute(path: '/submit-problem', builder: (context, state) => const SubmitProblemScreen()),
-      GoRoute(path: '/cases', builder: (context, state) => const MyCasesScreen()),
+      GoRoute(
+        path: '/cases',
+        builder: (context, state) => MyCasesScreen(autofocusSearch: state.uri.queryParameters['focus'] == 'search'),
+      ),
       GoRoute(
         path: '/cases/:id',
         builder: (context, state) => CaseDetailScreen(caseId: state.pathParameters['id']!),
@@ -86,6 +90,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/appointments', builder: (context, state) => const AppointmentsScreen()),
       GoRoute(path: '/notifications', builder: (context, state) => const NotificationsScreen()),
       GoRoute(path: '/tickets', builder: (context, state) => const TicketScreen()),
+      GoRoute(
+        path: '/tickets/:id',
+        builder: (context, state) => TicketDetailScreen(ticketId: state.pathParameters['id']!),
+      ),
       GoRoute(path: '/profile', builder: (context, state) => const UserShell(initialIndex: 4)),
 
       // ---- Doctor ----

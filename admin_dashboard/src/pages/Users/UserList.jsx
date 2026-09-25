@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { useApiQuery } from '../../hooks/useApiQuery';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import Card from '../../components/Card';
 import Table from '../../components/Table';
 import Button from '../../components/Button';
@@ -12,9 +13,10 @@ export default function UserList() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const debouncedSearch = useDebouncedValue(search);
   const { data, loading, error, refetch } = useApiQuery(
-    () => api.get('/admin/users', { params: { page, limit: 20, ...(search && { search }) } }),
-    [search, page],
+    () => api.get('/admin/users', { params: { page, limit: 20, ...(debouncedSearch && { search: debouncedSearch }) } }),
+    [debouncedSearch, page],
   );
 
   async function toggleBlock(user, e) {
@@ -41,9 +43,22 @@ export default function UserList() {
               rowKey={(row) => row.id}
               onRowClick={(row) => navigate(`/users/${row.id}`)}
               columns={[
-                { key: 'name', header: 'Name' },
+                { key: 'name', header: 'Name', render: (r) => (
+                  <div className="flex items-center gap-3">
+                    {r.avatar ? (
+                      <img src={r.avatar} alt={r.name} className="h-9 w-9 rounded-full object-cover" />
+                    ) : (
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-teal/10 text-xs font-semibold text-brand-teal">
+                        {r.name?.slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="font-medium text-slate-700">{r.name}</span>
+                  </div>
+                ) },
                 { key: 'phone', header: 'Phone' },
                 { key: 'email', header: 'Email', render: (r) => r.email || '—' },
+                { key: 'cases', header: 'Cases', render: (r) => r._count?.cases ?? 0 },
+                { key: 'joined', header: 'Joined', render: (r) => new Date(r.createdAt).toLocaleDateString() },
                 { key: 'status', header: 'Status', render: (r) => (r.isBlocked ? <span className="text-red-600">Blocked</span> : <span className="text-green-600">Active</span>) },
                 { key: 'actions', header: '', render: (r) => (
                   <Button variant={r.isBlocked ? 'secondary' : 'danger'} onClick={(e) => toggleBlock(r, e)}>

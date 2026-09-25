@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { Clock, FileText, Stethoscope, UserPlus, Users } from 'lucide-react';
 import { api } from '../lib/api';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { useSocketEvent } from '../lib/socket';
 import Card from '../components/Card';
+import Table from '../components/Table';
 import StatusBadge from '../components/StatusBadge';
 import AssignDoctorModal from '../components/AssignDoctorModal';
 import { Loading, ErrorMessage } from '../components/Feedback';
@@ -37,11 +39,12 @@ function StatCard({ label, value, icon: Icon, tone = 'teal' }) {
 export default function Dashboard() {
   const { data, loading, error, refetch } = useApiQuery(() => api.get('/admin/analytics'), []);
   const { data: recentCases, refetch: refetchCases } = useApiQuery(() => api.get('/admin/cases', { params: { limit: 5 } }), []);
-  const { data: recentTickets } = useApiQuery(() => api.get('/admin/tickets'), []);
+  const { data: recentTickets, refetch: refetchTickets } = useApiQuery(() => api.get('/admin/tickets', { params: { limit: 5 } }), []);
   const [assigningCaseId, setAssigningCaseId] = useState(null);
 
-  useSocketEvent(['case_assigned', 'notification', 'new_message'], refetch);
-  useSocketEvent(['case_assigned'], refetchCases);
+  useSocketEvent(['case_assigned', 'case_status_changed', 'notification', 'new_message'], refetch);
+  useSocketEvent(['case_assigned', 'case_status_changed'], refetchCases);
+  useSocketEvent(['notification'], refetchTickets);
 
   if (loading) return <Loading label="Loading analytics…" />;
   if (error) return <ErrorMessage message={error} />;
@@ -116,40 +119,47 @@ export default function Dashboard() {
             <h3 className="text-lg font-semibold text-slate-900">Recent cases</h3>
             <span className="rounded-full bg-brand-teal/10 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.15em] text-brand-teal">Live</span>
           </div>
-          <div className="space-y-2">
-            {recentCases?.data?.length ? recentCases.data.map((c) => (
-              <div key={c.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                <span className="text-sm font-medium text-slate-700">{c.user?.name}</span>
-                <div className="flex items-center gap-2">
-                  <StatusBadge status={c.status} />
-                  {!c.doctorId && !['SOLVED', 'CLOSED'].includes(c.status) && (
-                    <button
-                      type="button"
-                      onClick={() => setAssigningCaseId(c.id)}
-                      className="inline-flex items-center gap-1 rounded-full border border-brand-teal/30 bg-brand-teal/10 px-2.5 py-1 text-[11px] font-semibold text-brand-teal transition hover:bg-brand-teal/20"
-                    >
-                      <UserPlus className="h-3.5 w-3.5" />
-                      Assign
-                    </button>
-                  )}
-                </div>
-              </div>
-            )) : <p className="py-2 text-sm text-slate-400">No cases yet.</p>}
-          </div>
+          <Table
+            rowKey={(row) => row.id}
+            emptyMessage="No cases yet."
+            columns={[
+              { key: 'id', header: 'Case ID', render: (c) => (
+                <Link to={`/cases/${c.id}`} className="font-mono text-xs text-brand-teal hover:underline">SKC-{c.id.slice(0, 6).toUpperCase()}</Link>
+              ) },
+              { key: 'user', header: 'User', render: (c) => c.user?.name || '—' },
+              { key: 'createdAt', header: 'Submitted', render: (c) => new Date(c.createdAt).toLocaleDateString() },
+              { key: 'status', header: 'Status', render: (c) => <StatusBadge status={c.status} /> },
+              { key: 'assign', header: '', render: (c) => (!c.doctorId && !['SOLVED', 'CLOSED'].includes(c.status) ? (
+                <button
+                  type="button"
+                  onClick={() => setAssigningCaseId(c.id)}
+                  className="inline-flex items-center gap-1 rounded-full border border-brand-teal/30 bg-brand-teal/10 px-2.5 py-1 text-[11px] font-semibold text-brand-teal transition hover:bg-brand-teal/20"
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  Assign
+                </button>
+              ) : null) },
+            ]}
+            rows={recentCases?.data || []}
+          />
         </Card>
         <Card>
           <div className="mb-4 flex items-center justify-between gap-3">
             <h3 className="text-lg font-semibold text-slate-900">Recent tickets</h3>
             <span className="rounded-full bg-brand-teal/10 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.15em] text-brand-teal">Live</span>
           </div>
-          <div className="space-y-2">
-            {recentTickets?.data?.slice(0, 5)?.length ? recentTickets.data.slice(0, 5).map((t) => (
-              <div key={t.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                <span className="text-sm font-medium text-slate-700">{t.subject}</span>
-                <StatusBadge status={t.status} />
-              </div>
-            )) : <p className="py-2 text-sm text-slate-400">No tickets yet.</p>}
-          </div>
+          <Table
+            rowKey={(row) => row.id}
+            emptyMessage="No tickets yet."
+            columns={[
+              { key: 'user', header: 'User', render: (t) => t.user?.name || '—' },
+              { key: 'subject', header: 'Subject' },
+              { key: 'priority', header: 'Priority', render: (t) => <StatusBadge status={t.priority} /> },
+              { key: 'status', header: 'Status', render: (t) => <StatusBadge status={t.status} /> },
+              { key: 'createdAt', header: 'Date', render: (t) => new Date(t.createdAt).toLocaleDateString() },
+            ]}
+            rows={recentTickets?.data || []}
+          />
         </Card>
       </div>
 

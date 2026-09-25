@@ -18,6 +18,11 @@ const updateProfileSchema = z.object({
   avatar: z.string().optional(),
 });
 
+// FCM device token registration (push notifications).
+const deviceTokenSchema = z.object({
+  token: z.string().min(10),
+});
+
 const listCasesQuerySchema = z.object({
   status: z.enum(CASE_STATUSES).optional(),
   page: z.string().optional(),
@@ -54,6 +59,8 @@ const submitRatingSchema = z.object({
 
 router.get('/profile', userController.getProfile);
 router.put('/profile', validate({ body: updateProfileSchema }), userController.updateProfile);
+router.post('/device-token', validate({ body: deviceTokenSchema }), userController.registerDeviceToken);
+router.delete('/device-token', validate({ body: deviceTokenSchema }), userController.deleteDeviceToken);
 router.get('/question-flow', userController.getActiveQuestionFlow);
 router.get('/doctors', userController.listDoctors);
 

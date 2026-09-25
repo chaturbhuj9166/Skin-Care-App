@@ -10,7 +10,10 @@ import '../../data/models/case_model.dart';
 import '../../data/api/api_repository.dart';
 
 class MyCasesScreen extends ConsumerStatefulWidget {
-  const MyCasesScreen({super.key});
+  /// Set when arriving from the home screen's search box, so the keyboard is
+  /// already up on the field the tap promised.
+  final bool autofocusSearch;
+  const MyCasesScreen({super.key, this.autofocusSearch = false});
 
   @override
   ConsumerState<MyCasesScreen> createState() => _MyCasesScreenState();
@@ -18,6 +21,7 @@ class MyCasesScreen extends ConsumerStatefulWidget {
 
 class _MyCasesScreenState extends ConsumerState<MyCasesScreen> {
   int _tab = 0;
+  String _query = '';
   final _tabs = const ['All', 'Active', 'Solved'];
 
   @override
@@ -29,6 +33,16 @@ class _MyCasesScreenState extends ConsumerState<MyCasesScreen> {
       cases = cases.where((c) => c.status != CaseStatus.solved && c.status != CaseStatus.closed).toList();
     } else if (_tab == 2) {
       cases = cases.where((c) => c.status == CaseStatus.solved || c.status == CaseStatus.closed).toList();
+    }
+    if (_query.isNotEmpty) {
+      final q = _query.toLowerCase();
+      cases = cases
+          .where((c) =>
+              c.caseNumber.toLowerCase().contains(q) ||
+              c.mainConcern.toLowerCase().contains(q) ||
+              c.status.label.toLowerCase().contains(q) ||
+              (c.doctor?.name.toLowerCase().contains(q) ?? false))
+          .toList();
     }
 
     return Scaffold(
@@ -57,6 +71,22 @@ class _MyCasesScreenState extends ConsumerState<MyCasesScreen> {
             ),
           ),
           Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
+              child: TextField(
+                autofocus: widget.autofocusSearch,
+                onChanged: (v) => setState(() => _query = v),
+                decoration: const InputDecoration(
+                  hintText: 'Search your cases...',
+                  border: InputBorder.none,
+                  prefixIcon: Icon(Icons.search_rounded),
+                ),
+              ),
+            ),
+          ),
+          Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
               children: List.generate(_tabs.length, (i) {
@@ -78,10 +108,25 @@ class _MyCasesScreenState extends ConsumerState<MyCasesScreen> {
           const SizedBox(height: 6),
           Expanded(
             child: cases.isEmpty
-                ? const EmptyState(
-                    icon: Icons.folder_off_rounded,
-                    title: 'No cases yet',
-                    subtitle: 'Submit your first skin concern to get expert advice.',
+                // The empty state still needs to scroll, otherwise there is no
+                // drag for RefreshIndicator to pick up.
+                ? RefreshIndicator(
+                    onRefresh: repo.refreshCases,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) => SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                          child: EmptyState(
+                            icon: Icons.folder_off_rounded,
+                            title: _query.isEmpty ? 'No cases yet' : 'No matching cases',
+                            subtitle: _query.isEmpty
+                                ? 'Submit your first skin concern to get expert advice.'
+                                : 'Try a different case number, concern, status or doctor name.',
+                          ),
+                        ),
+                      ),
+                    ),
                   )
                 : RefreshIndicator(
                     onRefresh: repo.refreshCases,

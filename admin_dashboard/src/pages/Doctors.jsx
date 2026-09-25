@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api, apiErrorMessage } from '../lib/api';
 import { useApiQuery } from '../hooks/useApiQuery';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { useSocketEvent } from '../lib/socket';
 import Card from '../components/Card';
 import Button from '../components/Button';
@@ -14,7 +15,12 @@ function emptyForm() {
 }
 
 export default function Doctors() {
-  const { data, loading, error, refetch } = useApiQuery(() => api.get('/admin/doctors', { params: { limit: 100 } }), []);
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
+  const { data, loading, error, refetch } = useApiQuery(
+    () => api.get('/admin/doctors', { params: { limit: 100, ...(debouncedSearch && { search: debouncedSearch }) } }),
+    [debouncedSearch],
+  );
   useSocketEvent('doctor_availability_changed', refetch);
   const [editing, setEditing] = useState(null); // doctor object, or {} for new
   const [form, setForm] = useState(emptyForm());
@@ -71,9 +77,8 @@ export default function Doctors() {
     refetch();
   }
 
-  if (loading) return <Loading />;
-  if (error) return <ErrorMessage message={error} />;
-
+  // The list stays mounted while a search refetch is in flight, otherwise the
+  // search box would be unmounted and lose focus on every keystroke.
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -81,8 +86,17 @@ export default function Doctors() {
         <Button onClick={openCreate}>+ Add doctor</Button>
       </div>
 
+      <TextInput
+        placeholder="Search by name, email or specialization"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
+
+      {loading && <Loading />}
+      {error && <ErrorMessage message={error} />}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {data.data.map((doctor) => (
+        {data?.data?.map((doctor) => (
           <Card key={doctor.id}>
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
@@ -98,7 +112,10 @@ export default function Doctors() {
                   <div className="text-xs text-slate-400">{doctor.specialization || 'General'}</div>
                 </div>
               </div>
-              <span className={`h-2.5 w-2.5 rounded-full ${doctor.isAvailable ? 'bg-brand-green' : 'bg-slate-300'}`} title={doctor.isAvailable ? 'Available' : 'Unavailable'} />
+              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${doctor.isAvailable ? 'border-green-200 bg-green-50 text-green-700' : 'border-slate-200 bg-slate-100 text-slate-500'}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${doctor.isAvailable ? 'bg-brand-green' : 'bg-slate-400'}`} />
+                {doctor.isAvailable ? 'Available' : 'Unavailable'}
+              </span>
             </div>
             <div className="mt-3 text-sm text-slate-500">{doctor.email}</div>
             <div className="text-sm text-slate-500">{doctor.phone}</div>
@@ -118,6 +135,7 @@ export default function Doctors() {
           </Card>
         ))}
       </div>
+      {data && !data.data.length && <p className="py-6 text-center text-sm text-slate-400">No doctors found.</p>}
 
       <Modal open={!!editing} onClose={() => setEditing(null)} title={editing?.id ? 'Edit doctor' : 'Add doctor'} footer={
         <>

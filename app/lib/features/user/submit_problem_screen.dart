@@ -57,7 +57,6 @@ class _SubmitProblemScreenState extends ConsumerState<SubmitProblemScreen> {
   final Map<String, Set<String>> _multiSelections = {};
   final Map<String, int> _ratings = {};
   final Map<String, List<String>> _photoUrls = {};
-  int _rating = 0;
   int _photoCount = 0;
   bool _summary = false;
   bool _submitting = false;
@@ -254,7 +253,7 @@ class _SubmitProblemScreenState extends ConsumerState<SubmitProblemScreen> {
                     question: questions[_index],
                     selected: _answers[questions[_index].id],
                     multiSelected: _multiSelections[questions[_index].id] ?? const {},
-                    rating: _rating,
+                    rating: _ratings[questions[_index].id] ?? 0,
                     photoCount: _photoCount,
                     photoUrls: _photoUrls[questions[_index].id] ?? const [],
                     uploadingPhoto: _uploadingPhoto,
@@ -267,7 +266,6 @@ class _SubmitProblemScreenState extends ConsumerState<SubmitProblemScreen> {
                       }
                     },
                     onRating: (r) => setState(() {
-                      _rating = r;
                       _ratings[questions[_index].id] = r;
                       _answers[questions[_index].id] = '$r / 5';
                     }),
