@@ -245,6 +245,13 @@ const postCaseMessage = asyncHandler(async (req, res) => {
     type: 'NEW_MESSAGE',
     caseId: caseRecord.id,
   });
+  await fcm.sendPushNotification({
+    ownerId: caseRecord.userId,
+    ownerType: 'USER',
+    title: 'New message from your doctor',
+    body: `Dr. ${req.doctor.name} sent you a message.`,
+    data: { caseId: caseRecord.id, type: 'NEW_MESSAGE' },
+  });
 
   res.status(201).json({ message });
 });

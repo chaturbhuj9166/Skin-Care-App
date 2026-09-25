@@ -7,6 +7,7 @@ const { validateAnswers } = require('../validation/questionFlow');
 const { recordCaseStatus } = require('../services/caseHistory');
 const agora = require('../services/agora');
 const env = require('../config/env');
+const fcm = require('../services/fcm');
 
 async function getOwnCaseOrThrow(caseId, userId) {
   const found = await prisma.case.findUnique({ where: { id: caseId } });
@@ -273,6 +274,13 @@ const postCaseMessage = asyncHandler(async (req, res) => {
       body: `${req.user.name} sent a new message on their case.`,
       type: 'NEW_MESSAGE',
       caseId: caseRecord.id,
+    });
+    await fcm.sendPushNotification({
+      ownerId: caseRecord.doctorId,
+      ownerType: 'DOCTOR',
+      title: 'New message',
+      body: `${req.user.name} sent a new message on their case.`,
+      data: { caseId: caseRecord.id, type: 'NEW_MESSAGE' },
     });
   }
 
