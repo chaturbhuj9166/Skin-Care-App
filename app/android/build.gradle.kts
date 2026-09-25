@@ -5,6 +5,12 @@ allprojects {
     }
 }
 
+// agora_rtc_engine's own android/build.gradle hardcodes compileSdkVersion 31
+// via safeExtGet('compileSdkVersion', 31) unless this rootProject.ext value is
+// set - its AndroidX dependencies (fragment, window, activity, ...) require a
+// consumer compiled against API 34+, so the plugin's build fails without this.
+rootProject.extra["compileSdkVersion"] = 37
+
 val newBuildDir: Directory =
     rootProject.layout.buildDirectory
         .dir("../../build")

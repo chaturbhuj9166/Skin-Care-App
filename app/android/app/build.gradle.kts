@@ -7,7 +7,9 @@ plugins {
 
 android {
     namespace = "com.skincare.app"
-    compileSdk = flutter.compileSdkVersion
+    // permission_handler_android 14.x hardcodes compileSdk 37; keep the app in
+    // step with it (flutter.compileSdkVersion lags behind at 36).
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
