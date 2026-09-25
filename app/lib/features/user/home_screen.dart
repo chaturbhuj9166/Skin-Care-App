@@ -189,8 +189,16 @@ class HomeScreen extends ConsumerWidget {
               return _QuickActionButton(
                 action: a,
                 onTap: () {
-                  if (a.label.startsWith('Chat') && active != null) {
-                    context.push('/chat/${active.id}');
+                  if (a.label.startsWith('Chat')) {
+                    // Chat only opens once a doctor is on the case - otherwise
+                    // there is no one on the other end of the conversation.
+                    if (active != null && active.doctor != null) {
+                      context.push('/chat/${active.id}');
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Chat opens once a doctor is assigned to your case.')),
+                      );
+                    }
                   } else {
                     context.push(a.route);
                   }

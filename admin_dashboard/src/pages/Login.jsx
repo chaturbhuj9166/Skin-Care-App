@@ -8,7 +8,7 @@ import Button from '../components/Button';
 import Field from '../components/Field';
 import { ErrorMessage } from '../components/Feedback';
 
-const EMAIL_PATTERN = /^[^s@]+@[^s@]+.[^s@]+$/;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function validate({ email, password }) {
   const errors = {};
