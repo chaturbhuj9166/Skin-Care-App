@@ -46,6 +46,10 @@ dependencies:
   firebase_auth: ^6.7.0
   firebase_messaging: ^16.7.0
 
+  # Real-time video calls (patient <-> doctor)
+  agora_rtc_engine: ^6.6.4
+  permission_handler: ^13.0.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

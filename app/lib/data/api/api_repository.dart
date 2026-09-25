@@ -14,6 +14,7 @@ import '../models/rating_model.dart';
 import '../models/solution_model.dart';
 import '../models/ticket_model.dart';
 import '../models/user_model.dart';
+import '../models/video_call_credentials.dart';
 
 /// Real, backend-backed repository. Public shape (fields + method names)
 /// intentionally mirrors the previous MockRepository so screens need only a
@@ -136,8 +137,15 @@ class ApiRepository extends ChangeNotifier {
     _socketBound = true;
     // The socket payload has no persisted id/caseId, so re-read the saved rows
     // instead of inventing one (tapping an invented id 404s and can't navigate).
-    SocketService.instance.on('notification', (_) {
-      if (!_isDoctorMode) refreshNotifications();
+    SocketService.instance.on('notification', (data) {
+      if (_isDoctorMode) return;
+      refreshNotifications();
+      // Tickets have no socket event of their own - a reply/status change
+      // rides on this same 'notification' event, so re-fetch the list
+      // whenever one arrives for a ticket instead of leaving it stale until
+      // the next app restart.
+      final type = (data is Map) ? data['type'] as String? : null;
+      if (type == 'TICKET_UPDATE' || type == 'NEW_TICKET') refreshTickets();
     });
     SocketService.instance.on('case_assigned', (_) => refreshCases());
     SocketService.instance.on('solution_added', (_) => refreshCases());
@@ -158,6 +166,14 @@ class ApiRepository extends ChangeNotifier {
     notifications
       ..clear()
       ..addAll(((res.data['data'] as List)).map((n) => NotificationModel.fromJson(n as Map<String, dynamic>)));
+    notifyListeners();
+  }
+
+  Future<void> refreshTickets() async {
+    final res = await _dio.get('/users/tickets');
+    tickets
+      ..clear()
+      ..addAll(((res.data['data'] as List)).map((t) => TicketModel.fromJson(t as Map<String, dynamic>)));
     notifyListeners();
   }
 
@@ -212,6 +228,16 @@ class ApiRepository extends ChangeNotifier {
   }
 
   void joinCaseRoom(String caseId) => SocketService.instance.joinCase(caseId);
+
+  /// Fetches a fresh Agora RTC token to join the video call scheduled on
+  /// [caseId]. The backend 400/404s when there's no scheduled call right now
+  /// and 403/404s when the case isn't this account's to join - both surface
+  /// through apiErrorMessage() for the call screen to show.
+  Future<VideoCallCredentials> fetchVideoCallToken(String caseId) async {
+    final base = _isDoctorMode ? '/doctors' : '/users';
+    final res = await _dio.get('$base/cases/$caseId/video-token');
+    return VideoCallCredentials.fromJson((res.data as Map).cast<String, dynamic>());
+  }
 
   Future<void> submitSolution({
     required String caseId,

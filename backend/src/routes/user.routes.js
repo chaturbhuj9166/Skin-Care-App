@@ -71,6 +71,7 @@ router.get('/cases/:id', userController.getCaseById);
 router.post('/cases/:id/rating', validate({ body: submitRatingSchema }), userController.submitRating);
 router.get('/cases/:id/messages', userController.listCaseMessages);
 router.post('/cases/:id/messages', validate({ body: messageSchema }), userController.postCaseMessage);
+router.get('/cases/:id/video-token', userController.getVideoToken);
 
 router.get('/notifications', validate({ query: notificationsQuerySchema }), userController.listNotifications);
 router.patch('/notifications/:id/read', userController.markNotificationRead);

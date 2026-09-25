@@ -211,10 +211,14 @@ class ProfileScreen extends ConsumerWidget {
                 Wrap(
                   spacing: 8,
                   children: genders.map((g) {
+                    final selected = gender == g;
                     return ChoiceChip(
                       label: Text(g),
-                      selected: gender == g,
+                      selected: selected,
                       onSelected: (_) => setSheetState(() => gender = g),
+                      selectedColor: AppColors.primary,
+                      backgroundColor: AppColors.surface,
+                      labelStyle: TextStyle(color: selected ? Colors.white : AppColors.textDark, fontWeight: FontWeight.w600),
                     );
                   }).toList(),
                 ),

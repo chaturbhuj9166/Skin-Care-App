@@ -15,6 +15,8 @@ IconData _iconFor(NotificationType t) {
       return Icons.chat_bubble_rounded;
     case NotificationType.appointment:
       return Icons.videocam_rounded;
+    case NotificationType.ticket:
+      return Icons.confirmation_num_rounded;
     case NotificationType.system:
       return Icons.notifications_rounded;
   }
@@ -32,6 +34,10 @@ void _openTarget(BuildContext context, NotificationModel n) {
       context.push('/appointments');
     case NotificationType.caseUpdate:
       context.push(caseId != null ? '/cases/$caseId' : '/cases');
+    case NotificationType.ticket:
+      // No ticketId travels with the notification, so land on the list -
+      // the reply that triggered this is already the newest row there.
+      context.push('/tickets');
     case NotificationType.system:
       if (caseId != null) context.push('/cases/$caseId');
   }

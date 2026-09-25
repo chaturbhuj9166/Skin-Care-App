@@ -69,6 +69,7 @@ router.post('/cases/:id/solution', validate({ body: addSolutionSchema }), doctor
 router.get('/cases/:id/messages', doctorController.listCaseMessages);
 router.post('/cases/:id/messages', validate({ body: messageSchema }), doctorController.postCaseMessage);
 router.post('/cases/:id/schedule-call', validate({ body: scheduleCallSchema }), doctorController.scheduleCall);
+router.get('/cases/:id/video-token', doctorController.getVideoToken);
 
 router.get('/appointments', doctorController.listAppointments);
 router.get('/analytics', doctorController.getAnalytics);

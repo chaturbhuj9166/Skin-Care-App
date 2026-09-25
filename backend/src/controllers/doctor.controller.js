@@ -8,6 +8,7 @@ const { getPagination, buildPaginatedResponse } = require('../utils/pagination')
 const socket = require('../services/socket');
 const fcm = require('../services/fcm');
 const agora = require('../services/agora');
+const env = require('../config/env');
 const { recordCaseStatus } = require('../services/caseHistory');
 
 async function getAssignedCaseOrThrow(caseId, doctorId) {
@@ -301,6 +302,30 @@ const scheduleCall = asyncHandler(async (req, res) => {
   res.status(201).json({ videoCall, agoraToken });
 });
 
+// GET /api/doctors/cases/:id/video-token
+// Generates a fresh Agora token on demand, right when the doctor is about to
+// join the call, rather than relying on the one-hour token scheduleCall
+// handed back at schedule time (which can easily be stale by call time).
+const getVideoToken = asyncHandler(async (req, res) => {
+  const caseRecord = await getAssignedCaseOrThrow(req.params.id, req.doctor.id);
+
+  const videoCall = await prisma.videoCall.findFirst({
+    where: { caseId: caseRecord.id, status: { in: ['SCHEDULED', 'ONGOING'] } },
+    orderBy: { scheduledAt: 'desc' },
+  });
+  if (!videoCall) throw ApiError.badRequest('No video call is scheduled for this case');
+
+  // First participant to fetch a token for a still-SCHEDULED call flips it to
+  // ONGOING so other screens (patient appointment list, admin) reflect reality.
+  if (videoCall.status === 'SCHEDULED') {
+    await prisma.videoCall.update({ where: { id: videoCall.id }, data: { status: 'ONGOING' } });
+  }
+
+  const token = agora.generateRtcToken(videoCall.roomId);
+
+  res.json({ appId: env.AGORA_APP_ID, channel: videoCall.roomId, token, uid: 0 });
+});
+
 // GET /api/doctors/appointments
 const listAppointments = asyncHandler(async (req, res) => {
   const appointments = await prisma.videoCall.findMany({
@@ -377,6 +402,7 @@ module.exports = {
   listCaseMessages,
   postCaseMessage,
   scheduleCall,
+  getVideoToken,
   listAppointments,
   getAnalytics,
 };

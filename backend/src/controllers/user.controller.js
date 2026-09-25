@@ -5,6 +5,8 @@ const { getPagination, buildPaginatedResponse } = require('../utils/pagination')
 const socket = require('../services/socket');
 const { validateAnswers } = require('../validation/questionFlow');
 const { recordCaseStatus } = require('../services/caseHistory');
+const agora = require('../services/agora');
+const env = require('../config/env');
 
 async function getOwnCaseOrThrow(caseId, userId) {
   const found = await prisma.case.findUnique({ where: { id: caseId } });
@@ -277,6 +279,30 @@ const postCaseMessage = asyncHandler(async (req, res) => {
   res.status(201).json({ message });
 });
 
+// GET /api/users/cases/:id/video-token
+// Generates a fresh Agora token on demand, right when the patient is about to
+// join the call, rather than relying on the one-hour token the doctor was
+// handed at schedule time (see scheduleCall in doctor.controller.js).
+const getVideoToken = asyncHandler(async (req, res) => {
+  const caseRecord = await getOwnCaseOrThrow(req.params.id, req.user.id);
+
+  const videoCall = await prisma.videoCall.findFirst({
+    where: { caseId: caseRecord.id, status: { in: ['SCHEDULED', 'ONGOING'] } },
+    orderBy: { scheduledAt: 'desc' },
+  });
+  if (!videoCall) throw ApiError.badRequest('No video call is scheduled for this case');
+
+  // First participant to fetch a token for a still-SCHEDULED call flips it to
+  // ONGOING so other screens (doctor appointment list, admin) reflect reality.
+  if (videoCall.status === 'SCHEDULED') {
+    await prisma.videoCall.update({ where: { id: videoCall.id }, data: { status: 'ONGOING' } });
+  }
+
+  const token = agora.generateRtcToken(videoCall.roomId);
+
+  res.json({ appId: env.AGORA_APP_ID, channel: videoCall.roomId, token, uid: 0 });
+});
+
 // GET /api/users/notifications?unread=true
 const listNotifications = asyncHandler(async (req, res) => {
   const { unread } = req.query;
@@ -398,6 +424,7 @@ module.exports = {
   createCase,
   getCaseById,
   submitRating,
+  getVideoToken,
   listCaseMessages,
   postCaseMessage,
   listNotifications,

@@ -3,6 +3,13 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Android 13+ asks the user before we can show FCM notifications. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Agora video calls: camera/mic capture, audio routing (speaker/earpiece)
+         and Bluetooth headsets. permission_handler prompts for CAMERA and
+         RECORD_AUDIO at runtime before a call starts. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+    <uses-permission android:name="android.permission.BLUETOOTH"/>
     <application
         android:label="@string/app_name"
         android:name="${applicationName}"
@@ -38,6 +45,17 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- Without these, FCM falls back to the full-colour launcher icon for the
+             status-bar/notification icon, which Android auto-masks into an
+             unrecognisable white blob. This is a proper white silhouette instead
+             (see res/drawable-*/ic_stat_skincare.png), tinted teal. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_skincare" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_color" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

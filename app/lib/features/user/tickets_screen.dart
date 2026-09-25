@@ -72,7 +72,8 @@ class _TicketScreenState extends ConsumerState<TicketScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final tickets = ref.watch(apiRepositoryProvider).tickets;
+    final repo = ref.watch(apiRepositoryProvider);
+    final tickets = repo.tickets;
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(backgroundColor: Colors.white, title: const Text('Support Tickets')),
@@ -82,8 +83,20 @@ class _TicketScreenState extends ConsumerState<TicketScreen> {
         icon: const Icon(Icons.add_rounded),
         label: const Text('New Ticket'),
       ),
-      body: tickets.isEmpty
-          ? const EmptyState(icon: Icons.confirmation_num_rounded, title: 'No tickets raised', subtitle: 'Need help? Raise a support ticket.')
+      body: RefreshIndicator(
+        onRefresh: repo.refreshTickets,
+        child: tickets.isEmpty
+          ? LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: const Center(
+                    child: EmptyState(icon: Icons.confirmation_num_rounded, title: 'No tickets raised', subtitle: 'Need help? Raise a support ticket.'),
+                  ),
+                ),
+              ),
+            )
           : ListView.separated(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
               itemCount: tickets.length,
@@ -149,6 +162,7 @@ class _TicketScreenState extends ConsumerState<TicketScreen> {
                 );
               },
             ),
+      ),
     );
   }
 }

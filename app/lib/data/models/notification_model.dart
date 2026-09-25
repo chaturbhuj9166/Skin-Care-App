@@ -1,4 +1,4 @@
-enum NotificationType { caseUpdate, message, appointment, system }
+enum NotificationType { caseUpdate, message, appointment, ticket, system }
 
 class NotificationModel {
   final String id;
@@ -29,6 +29,9 @@ class NotificationModel {
       case 'NEW_CASE':
       case 'SOLUTION_ADDED':
         return NotificationType.caseUpdate;
+      case 'TICKET_UPDATE':
+      case 'NEW_TICKET':
+        return NotificationType.ticket;
       default:
         return NotificationType.system;
     }
