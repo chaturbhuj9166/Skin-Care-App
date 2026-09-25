@@ -1,20 +1,126 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/firebase/firebase_bootstrap.dart';
 import '../../core/navigation/root_navigator.dart';
 import '../../core/session/session_controller.dart';
 import 'api_client.dart';
 
+/// Android only (see [_isAndroid]) - a WhatsApp-style full-screen "incoming
+/// call" notification for a CALL_STARTED push that arrives while the app is
+/// backgrounded or killed. A foreground CALL_STARTED instead goes through
+/// IncomingCallScreen (main.dart), which has a live BuildContext to work with.
+final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
+const _incomingCallChannelId = 'incoming_calls';
+const _incomingCallNotificationId = 9001;
+
+bool get _isAndroid => !kIsWeb && Platform.isAndroid;
+
 /// Runs when a push arrives while the app is killed or backgrounded. FCM draws
-/// the system notification itself; this isolate only has to boot Firebase so
-/// data-only messages don't fail.
+/// the system notification itself for a regular push; a CALL_STARTED push is
+/// data-only (see the backend) so it never gets FCM's own notification tray
+/// entry - this isolate builds the high-priority call notification instead.
 @pragma('vm:entry-point')
 Future<void> pushBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
+  if (_isAndroid && message.data['type'] == 'CALL_STARTED') {
+    await _showIncomingCallNotification(message.data);
+  }
+}
+
+/// Builds the full-screen, Accept/Decline "incoming call" notification.
+/// `fullScreenIntent` + `AndroidNotificationCategory.call` is what makes
+/// Android launch it over the lock screen like a real call, provided the user
+/// hasn't revoked USE_FULL_SCREEN_INTENT in system settings (Android 14+ lets
+/// them do that per-app - if so, this quietly falls back to a heads-up
+/// notification instead).
+Future<void> _showIncomingCallNotification(Map<String, dynamic> data) async {
+  final caseId = data['caseId'] as String?;
+  if (caseId == null || caseId.isEmpty) return;
+  await _initLocalNotifications();
+  await _localNotifications.show(
+    id: _incomingCallNotificationId,
+    title: (data['title'] as String?) ?? 'Incoming video call',
+    body: (data['body'] as String?) ?? '',
+    payload: caseId,
+    notificationDetails: const NotificationDetails(
+      android: AndroidNotificationDetails(
+        _incomingCallChannelId,
+        'Incoming calls',
+        channelDescription: 'Alerts when the other side joins a scheduled video call',
+        importance: Importance.max,
+        priority: Priority.max,
+        category: AndroidNotificationCategory.call,
+        visibility: NotificationVisibility.public,
+        fullScreenIntent: true,
+        actions: [
+          AndroidNotificationAction('accept', 'Accept', showsUserInterface: true),
+          AndroidNotificationAction('decline', 'Decline', showsUserInterface: false),
+        ],
+      ),
+    ),
+  );
+}
+
+bool _localNotificationsInitialized = false;
+
+Future<void> _initLocalNotifications() async {
+  if (_localNotificationsInitialized) return;
+  _localNotificationsInitialized = true;
+  await _localNotifications.initialize(
+    settings: const InitializationSettings(android: AndroidInitializationSettings('ic_stat_skincare')),
+    onDidReceiveNotificationResponse: _onNotificationResponse,
+    onDidReceiveBackgroundNotificationResponse: _onBackgroundNotificationResponse,
+  );
+}
+
+/// Fires on the main isolate: the app was already running (foreground or
+/// backgrounded) when the user tapped the notification or its Accept action.
+/// Decline (`showsUserInterface: false`) never reaches this - see
+/// [_onBackgroundNotificationResponse].
+Future<void> _onNotificationResponse(NotificationResponse response) async {
+  final caseId = response.payload;
+  if (caseId == null || caseId.isEmpty) return;
+  await _routeToCall(caseId);
+}
+
+/// Fires on a throwaway background isolate for an action that doesn't show
+/// UI (Decline) - including when the app is fully killed. There's no
+/// BuildContext to navigate with here, nor a need to: just clear the
+/// notification tray entry.
+@pragma('vm:entry-point')
+void _onBackgroundNotificationResponse(NotificationResponse response) {
+  if (response.actionId == 'decline') {
+    FlutterLocalNotificationsPlugin().cancel(id: _incomingCallNotificationId);
+  }
+}
+
+/// Checks whether *this* launch of the app was the result of tapping the
+/// incoming-call notification while the app was fully killed - the local-
+/// notification equivalent of `FirebaseMessaging.getInitialMessage()`, which
+/// only ever fires for FCM's own notifications, not ones this plugin drew.
+/// Call once, after `main()` sets up the router.
+Future<void> handleLocalNotificationLaunch() async {
+  if (!_isAndroid) return;
+  await _initLocalNotifications();
+  final details = await _localNotifications.getNotificationAppLaunchDetails();
+  final caseId = details?.notificationResponse?.payload;
+  if (details?.didNotificationLaunchApp != true || caseId == null || caseId.isEmpty) return;
+  await _routeToCall(caseId);
+}
+
+Future<void> _routeToCall(String caseId) async {
+  final isDoctor = await readIsDoctorRolePersisted();
+  final context = rootNavigatorKey.currentContext;
+  if (context == null) return;
+  // ignore: use_build_context_synchronously
+  context.push(isDoctor ? '/doctor-video-call/$caseId' : '/video-call/$caseId');
 }
 
 /// Routes a tapped push straight to the screen it's about, for the case

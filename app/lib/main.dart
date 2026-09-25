@@ -1,15 +1,14 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'app_router.dart';
-import 'core/constants/app_colors.dart';
 import 'core/firebase/firebase_bootstrap.dart';
 import 'core/navigation/root_navigator.dart';
 import 'core/theme/app_theme.dart';
 import 'data/api/api_repository.dart';
 import 'data/api/push_service.dart';
 import 'data/models/call_alert.dart';
+import 'features/shared/incoming_call_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,6 +26,11 @@ Future<void> main() async {
       if (message == null) return;
       WidgetsBinding.instance.addPostFrameCallback((_) => handleNotificationTap(message));
     });
+    // Android only: the app may instead have been cold-started by tapping the
+    // high-priority "incoming call" notification pushBackgroundHandler drew
+    // itself (see push_service.dart) - that one isn't an FCM notification, so
+    // getInitialMessage() above never sees it.
+    WidgetsBinding.instance.addPostFrameCallback((_) => handleLocalNotificationLaunch());
   }
   runApp(const ProviderScope(child: SkinCareApp()));
 }
@@ -41,14 +45,14 @@ class SkinCareApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
     // The other side of a scheduled call just joined it (socket event
-    // 'notification', type CALL_STARTED) - pop a Join/Dismiss dialog instead
-    // of relying on the recipient to notice a system push on their own.
+    // 'notification', type CALL_STARTED) - show a full-screen incoming-call
+    // takeover instead of relying on the recipient to notice a system push.
     ref.listen<ApiRepository>(apiRepositoryProvider, (previous, next) {
       final call = next.incomingCall;
       if (call == null) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         next.dismissIncomingCall();
-        _showIncomingCallDialog(call, next.isDoctorMode);
+        _showIncomingCallScreen(call, next.isDoctorMode);
       });
     });
     return MaterialApp.router(
@@ -62,26 +66,11 @@ class SkinCareApp extends ConsumerWidget {
   }
 }
 
-void _showIncomingCallDialog(CallAlert call, bool isDoctorMode) {
-  final context = rootNavigatorKey.currentContext;
-  if (context == null) return;
-  showDialog<void>(
-    context: context,
-    builder: (dialogContext) => AlertDialog(
-      icon: const Icon(Icons.videocam_rounded, color: AppColors.primary, size: 32),
-      title: Text(call.title),
-      content: Text(call.body),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Dismiss')),
-        TextButton(
-          onPressed: () {
-            Navigator.pop(dialogContext);
-            final route = isDoctorMode ? '/doctor-video-call/${call.caseId}' : '/video-call/${call.caseId}';
-            rootNavigatorKey.currentContext?.push(route);
-          },
-          child: const Text('Join Now', style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.primary)),
-        ),
-      ],
-    ),
-  );
+void _showIncomingCallScreen(CallAlert call, bool isDoctorMode) {
+  final navigator = rootNavigatorKey.currentState;
+  if (navigator == null) return;
+  navigator.push(MaterialPageRoute<void>(
+    builder: (_) => IncomingCallScreen(call: call, isDoctorMode: isDoctorMode),
+    fullscreenDialog: true,
+  ));
 }

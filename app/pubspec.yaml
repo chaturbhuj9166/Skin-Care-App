@@ -50,6 +50,10 @@ dependencies:
   agora_rtc_engine: ^6.6.4
   permission_handler: ^13.0.2
 
+  # Local push (high-priority "incoming call" style Android notification for
+  # CALL_STARTED while backgrounded/killed - see push_service.dart)
+  flutter_local_notifications: ^22.3.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
