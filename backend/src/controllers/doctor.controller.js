@@ -263,10 +263,18 @@ const scheduleCall = asyncHandler(async (req, res) => {
 
   // Rescheduling replaces the case's pending call rather than stacking a
   // second one, so every screen reading "the" scheduled time for this case
-  // agrees on a single value.
+  // agrees on a single value. This has to clear out BOTH a still-pending
+  // SCHEDULED call and an already-ONGOING one - nothing ever marks a call
+  // COMPLETED on its own (there's no "hang up" callback to the backend), so
+  // without this an old test/abandoned call stays ONGOING forever and can
+  // outrank the fresh one in getVideoToken below.
   await prisma.videoCall.updateMany({
     where: { caseId: caseRecord.id, status: 'SCHEDULED' },
     data: { status: 'CANCELLED' },
+  });
+  await prisma.videoCall.updateMany({
+    where: { caseId: caseRecord.id, status: 'ONGOING' },
+    data: { status: 'COMPLETED' },
   });
 
   const roomId = uuidv4();
@@ -316,11 +324,16 @@ const scheduleCall = asyncHandler(async (req, res) => {
 const getVideoToken = asyncHandler(async (req, res) => {
   const caseRecord = await getAssignedCaseOrThrow(req.params.id, req.doctor.id);
 
+  // createdAt, not scheduledAt: the call that was set up most recently is
+  // "the" current one for this case, regardless of what clock time it was
+  // scheduled for - ordering by scheduledAt let a stale ONGOING call from
+  // an earlier test outrank a freshly (re)scheduled one.
   const videoCall = await prisma.videoCall.findFirst({
     where: { caseId: caseRecord.id, status: { in: ['SCHEDULED', 'ONGOING'] } },
-    orderBy: { scheduledAt: 'desc' },
+    orderBy: { createdAt: 'desc' },
   });
   if (!videoCall) throw ApiError.badRequest('No video call is scheduled for this case');
+  console.log(`[VideoCall] doctor ${req.doctor.id} fetching token for call ${videoCall.id} (status=${videoCall.status}, scheduledAt=${videoCall.scheduledAt.toISOString()})`);
 
   // First participant to fetch a token for a still-SCHEDULED call flips it to
   // ONGOING so other screens (patient appointment list, admin) reflect reality.

@@ -124,6 +124,7 @@ async function sendPushNotification({ to, ownerId, ownerType, title, body, data 
   }
 
   const result = await sendToTokens(tokens, { title, body, data });
+  console.log(`[FCM] Push "${title}" to ${ownerType ?? '(explicit tokens)'} ${ownerId ?? ''}: ${tokens.length} token(s), ${result.successCount} sent, ${result.failureCount} failed`);
   return { ...result, stub: false, messageId: `fcm-${Date.now()}` };
 }
 

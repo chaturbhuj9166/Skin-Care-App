@@ -138,12 +138,24 @@ function getIO() {
 // Emit helpers used by REST controllers
 // ---------------------------------------------------------------------------
 
+// Diagnostic only: a room with 0 sockets means the emit was a no-op (the
+// recipient's app has no live socket connection right now, e.g. backgrounded
+// on mobile) - useful to tell apart from "the emit call never ran at all"
+// when a real-time alert doesn't show up on a test device.
+function connectedCount(room) {
+  return getIO().sockets.adapter.rooms.get(room)?.size ?? 0;
+}
+
 function emitToUser(userId, event, payload) {
-  getIO().to(personalRoom(ROLES.USER, userId)).emit(event, payload);
+  const room = personalRoom(ROLES.USER, userId);
+  console.log(`[socket] emitToUser ${userId} '${event}' -> ${connectedCount(room)} connected socket(s)`);
+  getIO().to(room).emit(event, payload);
 }
 
 function emitToDoctor(doctorId, event, payload) {
-  getIO().to(personalRoom(ROLES.DOCTOR, doctorId)).emit(event, payload);
+  const room = personalRoom(ROLES.DOCTOR, doctorId);
+  console.log(`[socket] emitToDoctor ${doctorId} '${event}' -> ${connectedCount(room)} connected socket(s)`);
+  getIO().to(room).emit(event, payload);
 }
 
 function emitToAdmin(adminId, event, payload) {
