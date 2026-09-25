@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'core/navigation/root_navigator.dart';
 import 'core/session/session_controller.dart';
 import 'data/api/api_repository.dart';
 import 'data/api/auth_api.dart';
@@ -32,6 +33,7 @@ import 'features/user/user_shell.dart';
 /// roles lives in this same route tree from then on.
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/splash',
     redirect: (context, state) {
       final session = ref.read(appSessionProvider);

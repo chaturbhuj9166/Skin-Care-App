@@ -231,12 +231,21 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
     setState(() => _cameraOff = next);
   }
 
+  /// Flips the physical camera. The local *preview* texture is what goes
+  /// stale here - the remote side keeps seeing the new camera fine either
+  /// way, since that's the encoded stream, not this widget's render target -
+  /// so the fix is a fresh [VideoViewController], not just flipping the flag.
   Future<void> _flipCamera() async {
     final engine = _engine;
     if (engine == null) return;
     await engine.switchCamera();
     if (!mounted) return;
-    setState(() => _frontCamera = !_frontCamera);
+    final stale = _localVideoController;
+    setState(() {
+      _frontCamera = !_frontCamera;
+      _localVideoController = VideoViewController(rtcEngine: engine, canvas: const VideoCanvas(uid: 0));
+    });
+    await stale?.dispose();
   }
 
   Future<void> _toggleSpeaker() async {

@@ -3,7 +3,10 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/firebase/firebase_bootstrap.dart';
+import '../../core/navigation/root_navigator.dart';
+import '../../core/session/session_controller.dart';
 import 'api_client.dart';
 
 /// Runs when a push arrives while the app is killed or backgrounded. FCM draws
@@ -12,6 +15,34 @@ import 'api_client.dart';
 @pragma('vm:entry-point')
 Future<void> pushBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
+}
+
+/// Routes a tapped push straight to the screen it's about, for the case
+/// where the app was backgrounded or fully killed when it arrived (a
+/// foreground push is handled separately - see [PushService._handleForeground]
+/// and the CALL_STARTED dialog wired in main.dart). Reads the persisted role
+/// from secure storage rather than [PushService._basePath], since that's only
+/// set once [PushService.start] has run, which hasn't necessarily happened
+/// yet this launch if the app was killed and reopened via the tap itself.
+Future<void> handleNotificationTap(RemoteMessage message) async {
+  final data = message.data;
+  final type = data['type'];
+  final caseId = data['caseId'];
+  if (caseId == null || caseId.isEmpty) return;
+  final isDoctor = await readIsDoctorRolePersisted();
+  // Freshly read right after the only await above, not a widget's own
+  // context - there's no State/mounted to guard with here, and the router's
+  // navigator key is stable for the app's lifetime.
+  final context = rootNavigatorKey.currentContext;
+  if (context == null) return;
+  switch (type) {
+    case 'CALL_STARTED':
+      // ignore: use_build_context_synchronously
+      context.push(isDoctor ? '/doctor-video-call/$caseId' : '/video-call/$caseId');
+    case 'NEW_MESSAGE':
+      // ignore: use_build_context_synchronously
+      context.push(isDoctor ? '/doctor-chat/$caseId' : '/chat/$caseId');
+  }
 }
 
 /// FCM device-token registration and foreground message handling.

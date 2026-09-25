@@ -104,3 +104,17 @@ class SessionController extends StateNotifier<SessionState> {
 final appSessionProvider = StateNotifierProvider<SessionController, SessionState>(
   (ref) => SessionController(),
 );
+
+/// Reads the persisted role directly from secure storage, without going
+/// through the full session bootstrap. Used by push_service.dart to route a
+/// tapped background/killed-app notification to the right role's screen even
+/// when PushService.start() hasn't run yet this launch (e.g. the app was
+/// killed and reopened straight from the notification tap).
+Future<bool> readIsDoctorRolePersisted() async {
+  try {
+    final roleStr = await const FlutterSecureStorage().read(key: SessionController._roleKey);
+    return roleStr == 'DOCTOR';
+  } catch (_) {
+    return false;
+  }
+}

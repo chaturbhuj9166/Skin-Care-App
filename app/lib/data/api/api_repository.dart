@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'api_client.dart';
 import 'socket_service.dart';
 import '../models/appointment_model.dart';
+import '../models/call_alert.dart';
 import '../models/case_model.dart';
 import '../models/doctor_model.dart';
 import '../models/message_model.dart';
@@ -32,12 +33,23 @@ class ApiRepository extends ChangeNotifier {
   bool bootstrapped = false;
   final List<CaseModel> cases = [];
   final List<NotificationModel> notifications = [];
+  // Set whenever the other side of a scheduled call actually joins it (the
+  // 'notification' socket event, type CALL_STARTED). A widget near the root
+  // (see main.dart) watches this and shows a Join/Dismiss dialog, since this
+  // repository has no BuildContext of its own.
+  CallAlert? incomingCall;
+
+  void dismissIncomingCall() {
+    incomingCall = null;
+    notifyListeners();
+  }
   final List<TicketModel> tickets = [];
   final List<AppointmentModel> appointments = [];
   final List<QuestionModel> questionFlow = [];
 
   bool doctorAvailable = true;
   bool _isDoctorMode = false;
+  bool get isDoctorMode => _isDoctorMode;
 
   // ------- Derived getters (unchanged shape from MockRepository) -------
   CaseModel? get activeCase {
@@ -138,13 +150,27 @@ class ApiRepository extends ChangeNotifier {
     // The socket payload has no persisted id/caseId, so re-read the saved rows
     // instead of inventing one (tapping an invented id 404s and can't navigate).
     SocketService.instance.on('notification', (data) {
+      final type = (data is Map) ? data['type'] as String? : null;
+      // CALL_STARTED has to fire for both roles - unlike the rest of this
+      // handler, which is patient-only because doctors have no notification
+      // list of their own to refresh.
+      if (type == 'CALL_STARTED') {
+        final caseId = (data is Map) ? data['caseId'] as String? : null;
+        if (caseId != null) {
+          incomingCall = CallAlert(
+            caseId: caseId,
+            title: (data['title'] as String?) ?? 'Video call is live',
+            body: (data['body'] as String?) ?? '',
+          );
+          notifyListeners();
+        }
+      }
       if (_isDoctorMode) return;
       refreshNotifications();
       // Tickets have no socket event of their own - a reply/status change
       // rides on this same 'notification' event, so re-fetch the list
       // whenever one arrives for a ticket instead of leaving it stale until
       // the next app restart.
-      final type = (data is Map) ? data['type'] as String? : null;
       if (type == 'TICKET_UPDATE' || type == 'NEW_TICKET') refreshTickets();
     });
     SocketService.instance.on('case_assigned', (_) => refreshCases());
