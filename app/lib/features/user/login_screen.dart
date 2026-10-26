@@ -363,7 +363,7 @@ class _Hero extends StatelessWidget {
             children: [
               SizedBox(
                 width: 170,
-                child: Image.asset('assets/images/app_logo.png', fit: BoxFit.contain),
+                child: Image.asset('assets/images/app_logo_white.png', fit: BoxFit.contain),
               ).animate().scale(duration: 500.ms, curve: Curves.easeOutBack, begin: const Offset(0.6, 0.6)),
               const SizedBox(height: 18),
               AnimatedSwitcher(

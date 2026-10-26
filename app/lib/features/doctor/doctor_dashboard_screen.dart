@@ -66,12 +66,7 @@ class DoctorDashboardScreen extends ConsumerWidget {
               children: [
                 Row(
                   children: [
-                    Container(
-                      height: 26,
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
-                      child: Image.asset('assets/images/app_logo_mark.png'),
-                    ),
+                    SizedBox(height: 22, child: Image.asset('assets/images/app_logo_mark_white.png')),
                     const SizedBox(width: 8),
                     const Text(
                       'Lock and Key Skin Care',

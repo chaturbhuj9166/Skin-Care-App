@@ -76,7 +76,7 @@ class _AppSplashScreenState extends ConsumerState<AppSplashScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               SizedBox(
-                width: 240,
+                width: 200,
                 child: Image.asset('assets/images/app_logo.png', fit: BoxFit.contain),
               )
                   .animate()
