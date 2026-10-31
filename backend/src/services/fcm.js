@@ -58,6 +58,13 @@ async function pruneTokens(tokens) {
   }
 }
 
+// iOS shows an FCM `notification` as a silent banner unless the APNs payload
+// asks for a sound. Android ignores the `apns` block.
+const APNS_ALERT = {
+  headers: { 'apns-push-type': 'alert', 'apns-priority': '10' },
+  payload: { aps: { sound: 'default' } },
+};
+
 /**
  * Sends a multicast to the given tokens and prunes the dead ones.
  * @returns {Promise<{ success: boolean, successCount: number, failureCount: number }>}
@@ -81,6 +88,7 @@ async function sendToTokens(tokens, { title, body, data }) {
         tokens: batch,
         notification: { title, body },
         data: stringifyData(data),
+        apns: APNS_ALERT,
       });
       successCount += response.successCount;
       failureCount += response.failureCount;
@@ -151,7 +159,7 @@ async function sendPushToTopic({ topic, title, body, data = {} }) {
 
   const messaging = firebase.getMessaging();
   try {
-    const messageId = await messaging.send({ topic, notification: { title, body }, data: stringifyData(data) });
+    const messageId = await messaging.send({ topic, notification: { title, body }, data: stringifyData(data), apns: APNS_ALERT });
     return { success: true, stub: false, messageId };
   } catch (err) {
     console.error('[FCM] Topic send failed:', err.message);

@@ -49,7 +49,25 @@ class _DoctorCasesScreenState extends ConsumerState<DoctorCasesScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
-            child: Text('My Cases', style: Theme.of(context).textTheme.headlineSmall),
+            child: Row(
+              children: [
+                // Also pushed on its own from the dashboard/profile; iOS has
+                // no hardware back button, so show one whenever we can pop.
+                if (context.canPop())
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: InkWell(
+                      onTap: () => context.pop(),
+                      borderRadius: BorderRadius.circular(20),
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(Icons.arrow_back_rounded),
+                      ),
+                    ),
+                  ),
+                Text('My Cases', style: Theme.of(context).textTheme.headlineSmall),
+              ],
+            ),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),

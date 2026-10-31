@@ -188,11 +188,21 @@ class PushService {
     _onForeground = onForegroundMessage;
     try {
       final messaging = FirebaseMessaging.instance;
-      await messaging.requestPermission();
-      final token = await messaging.getToken();
-      if (token != null) await _register(token);
+      // Listeners go first: on iOS getToken() throws until APNs has handed
+      // over its token, and onTokenRefresh is what picks the token up then.
       _refreshSub ??= messaging.onTokenRefresh.listen(_register);
       _messageSub ??= FirebaseMessaging.onMessage.listen(_handleForeground);
+      await messaging.requestPermission();
+      if (!kIsWeb && Platform.isIOS) {
+        String? apnsToken;
+        for (var i = 0; i < 10 && apnsToken == null; i++) {
+          apnsToken = await messaging.getAPNSToken();
+          if (apnsToken == null) await Future<void>.delayed(const Duration(seconds: 1));
+        }
+        if (apnsToken == null) return;
+      }
+      final token = await messaging.getToken();
+      if (token != null) await _register(token);
     } catch (e) {
       debugPrint('Push setup failed: $e');
     }

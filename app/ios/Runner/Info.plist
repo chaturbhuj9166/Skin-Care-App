@@ -24,12 +24,42 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>tez</string>
+		<string>phonepe</string>
+		<string>paytmmp</string>
+		<string>credpay</string>
+		<string>bhim</string>
+		<string>amazonpay</string>
+		<string>mobikwik</string>
+		<string>in.fampay.app</string>
+		<string>navi</string>
+		<string>kiwi</string>
+		<string>payzapp</string>
+		<string>jupiter</string>
+		<string>omnicard</string>
+		<string>icici</string>
+		<string>popclub</string>
+		<string>sbiyono</string>
+		<string>myjio</string>
+		<string>slice-upi</string>
+		<string>bobupi</string>
+		<string>shriramone</string>
+		<string>indusmobile</string>
+		<string>whatsapp</string>
+		<string>kotakbank</string>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Lock and Key Skin Care uses your camera to photograph your skin concern and update your profile photo.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Lock and Key Skin Care needs access to your photo library so you can attach photos to a case, chat, or profile.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Lock and Key Skin Care saves your prescription to your photo library when you choose to.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Lock and Key Skin Care uses your microphone during video consultations with your doctor.</string>
 	<key>UIApplicationSceneManifest</key>
@@ -53,6 +83,11 @@
 			</array>
 		</dict>
 	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>remote-notification</string>
+	</array>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

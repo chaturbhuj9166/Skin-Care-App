@@ -76,7 +76,25 @@ class _DoctorAppointmentsScreenState extends ConsumerState<DoctorAppointmentsScr
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-            child: Text('Appointments', style: Theme.of(context).textTheme.headlineSmall),
+            child: Row(
+              children: [
+                // Also pushed on its own from the dashboard; iOS has no
+                // hardware back button, so show one whenever we can pop.
+                if (context.canPop())
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: InkWell(
+                      onTap: () => context.pop(),
+                      borderRadius: BorderRadius.circular(20),
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(Icons.arrow_back_rounded),
+                      ),
+                    ),
+                  ),
+                Text('Appointments', style: Theme.of(context).textTheme.headlineSmall),
+              ],
+            ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 12, 8),

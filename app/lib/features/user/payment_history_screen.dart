@@ -114,7 +114,7 @@ class _PaymentTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('₹${payment.amountRupees.toStringAsFixed(0)} · Case submission fee',
+                Text('₹${payment.amountRupees.toStringAsFixed(0)} · Dermatologist consultation fee',
                     style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
                 const SizedBox(height: 3),
                 Text(

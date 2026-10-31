@@ -108,7 +108,7 @@ class _SubmitProblemScreenState extends ConsumerState<SubmitProblemScreen> {
       'currency': order['currency'],
       'order_id': order['orderId'],
       'name': 'Lock and Key Skin Care',
-      'description': 'Case submission fee',
+      'description': 'Dermatologist consultation fee',
       'prefill': {'contact': user.phone, 'email': user.email},
     });
     return _paymentCompleter!.future;
@@ -590,6 +590,11 @@ class _PatientDetailsSheetState extends ConsumerState<_PatientDetailsSheet> {
                       style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.primary)),
                 ],
               ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'For non-emergency skin concerns only. In an emergency, call 112 or visit the nearest hospital.',
+              style: TextStyle(fontSize: 11.5, color: AppColors.textLight),
             ),
             const SizedBox(height: 18),
             PrimaryButton(label: 'Confirm & Pay ₹$_caseSubmissionFeeRupees', icon: Icons.send_rounded, loading: _saving, onPressed: _save),

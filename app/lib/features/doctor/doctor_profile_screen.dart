@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../core/config/legal_links.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/session/session_controller.dart';
 import '../../core/widgets/app_avatar.dart';
@@ -103,6 +104,16 @@ class DoctorProfileScreen extends ConsumerWidget {
                 actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
               ),
             ),
+          ),
+          _ProfileTile(
+            icon: Icons.privacy_tip_outlined,
+            label: 'Privacy Policy',
+            onTap: () => openLegalPage(context, privacyPolicyPath),
+          ),
+          _ProfileTile(
+            icon: Icons.description_outlined,
+            label: 'Terms & Conditions',
+            onTap: () => openLegalPage(context, termsPath),
           ),
           const SizedBox(height: 8),
           _ProfileTile(

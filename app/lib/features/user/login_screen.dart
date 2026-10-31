@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/config/legal_links.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/firebase/firebase_bootstrap.dart';
 import '../../core/session/complete_login.dart';
@@ -206,15 +207,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             const SizedBox(height: 18),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: const Text.rich(
+              child: Text.rich(
                 textAlign: TextAlign.center,
                 TextSpan(
-                  style: TextStyle(color: AppColors.textLight, fontSize: 12, height: 1.5),
+                  style: const TextStyle(color: AppColors.textLight, fontSize: 12, height: 1.5),
                   children: [
-                    TextSpan(text: 'By continuing, you agree to our '),
-                    TextSpan(text: 'Terms', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600)),
-                    TextSpan(text: ' & '),
-                    TextSpan(text: 'Privacy Policy', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600)),
+                    const TextSpan(text: 'By continuing, you agree to our '),
+                    _legalLink(context, 'Terms', termsPath),
+                    const TextSpan(text: ' & '),
+                    _legalLink(context, 'Privacy Policy', privacyPolicyPath),
                   ],
                 ),
               ),
@@ -524,3 +525,13 @@ class _TrustRow extends StatelessWidget {
     ).animate().fadeIn(delay: 250.ms, duration: 400.ms);
   }
 }
+
+InlineSpan _legalLink(BuildContext context, String label, String path) => WidgetSpan(
+      alignment: PlaceholderAlignment.baseline,
+      baseline: TextBaseline.alphabetic,
+      child: GestureDetector(
+        onTap: () => openLegalPage(context, path),
+        child: Text(label,
+            style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 12, height: 1.5)),
+      ),
+    );
